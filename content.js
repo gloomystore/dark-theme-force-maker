@@ -72,7 +72,7 @@ function isLightColor(color) {
     const g = parseInt(rgb[1], 10);
     const b = parseInt(rgb[2], 10);
     const hsl = rgbToHsl(r, g, b);
-    return hsl[2] > 0.5; // Light color if lightness > 50%
+    return hsl[2] > 0.4; // Light color if lightness > 40%
   }
   return false;
 }
@@ -85,7 +85,7 @@ function isDarkColor(color) {
     const g = parseInt(rgb[1], 10);
     const b = parseInt(rgb[2], 10);
     const hsl = rgbToHsl(r, g, b);
-    return hsl[2] < 0.5; // Dark color if lightness < 50%
+    return hsl[2] < 0.6; // Dark color if lightness < 60%
   }
   return false;
 }
