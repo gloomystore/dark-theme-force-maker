@@ -32,4 +32,4 @@ Feel free to open issues or submit pull requests if you would like to contribute
 
 ## Contact
 
-For any inquiries, please contact: [your.email@example.com](mailto:your.email@example.com)
+For any inquiries, please contact: [pikchu3333@gmail.com](mailto:pikchu3333@gmail.com)
