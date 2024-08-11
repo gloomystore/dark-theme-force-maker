@@ -1,3 +1,58 @@
+/* General body styles for the popup */
 body {
   font-family: Arial, sans-serif;
+  margin: 0;
+  padding: 0;
+  width: 200px;
+  height: 150px;
+  background-color: #f0f0f0;
+  color: #333;
+}
+
+/* Container for the popup content */
+#popup-container {
+  padding: 10px;
+  box-sizing: border-box;
+}
+
+/* Heading style */
+h1 {
+  font-size: 16px;
+  margin: 0;
+  padding: 5px 0;
+  text-align: center;
+  color: #555;
+}
+
+/* Button style */
+button {
+  width: 100%;
+  padding: 10px;
+  margin-top: 10px;
+  font-size: 14px;
+  background-color: #007bff;
+  color: #fff;
+  border: none;
+  border-radius: 5px;
+  cursor: pointer;
+  transition: background-color 0.3s ease;
+}
+
+button:hover {
+  background-color: #0056b3;
+}
+
+/* Status message style */
+#status {
+  margin-top: 10px;
+  font-size: 14px;
+  text-align: center;
+}
+
+#status.success {
+  color: #28a745; /* Green for success */
+}
+
+#status.error {
+  color: #dc3545; /* Red for error */
 }
