@@ -1,0 +1,46 @@
+{
+  "manifest_version": 3,
+  "name": "dark-theme-force-maker",
+  "version": "1.0.1",
+  "description": "A tool to force dark mode on websites that do not support it by applying custom CSS.",
+  "homepage_url": "https://www.gloomy-store.com",
+  "permissions": [
+    "activeTab",
+    "storage"
+  ],
+  "background": {
+    "service_worker": "background.js"
+  },
+  "content_scripts": [
+    {
+      "matches": ["<all_urls>"],
+      "js": ["content.js"]
+    }
+  ],
+  "action": {
+    "default_popup": "popup.html",
+    "default_icon": {
+      "48": "icon.png"
+    }
+  },
+  "icons": {
+    "48": "icon.png"
+  },
+  "license": "GPL-3.0",
+  "author": "Gloomystore",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/gloomystore/dark-theme-force-maker.git"
+  },
+  "keywords": [
+    "dark-theme",
+    "dark-mode",
+    "theme-switcher",
+    "css",
+    "custom-css",
+    "website",
+    "accessibility",
+    "dark-mode-force",
+    "dark-theme-applier"
+  ]
+}
