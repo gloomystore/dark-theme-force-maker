@@ -58,9 +58,9 @@ function removeDarkMode() {
   // Reset colors to default
   const elements = document.querySelectorAll('*');
   elements.forEach(element => {
-    element.style.backgroundColor = '';
-    element.style.color = '';
-    element.style.borderColor = '';
+    element.style.removeProperty('background-color');
+    element.style.removeProperty('color');
+    element.style.removeProperty('border-color');
   });
 }
 
@@ -72,7 +72,7 @@ function isLightColor(color) {
     const g = parseInt(rgb[1], 10);
     const b = parseInt(rgb[2], 10);
     const hsl = rgbToHsl(r, g, b);
-    return hsl[2] > 0.4; // Light color if lightness > 40%
+    return hsl[2] > 0.3; // Light color if lightness > 30%
   }
   return false;
 }
