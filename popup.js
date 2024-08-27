@@ -1,6 +1,16 @@
 document.addEventListener('DOMContentLoaded', () => {
   const applyButton = document.getElementById('apply-dark-mode');
   const status = document.getElementById('status');
+  const currentDomainElement = document.getElementById('current-domain');
+
+  // Request current domain from background script
+  chrome.runtime.sendMessage({ action: 'getCurrentDomain' }, (response) => {
+    if (response && response.domain) {
+      currentDomainElement.textContent = `Current domain: ${response.domain}`;
+    } else {
+      currentDomainElement.textContent = 'Could not retrieve domain.';
+    }
+  });
 
   // Check the current state from local storage and update UI
   chrome.storage.local.get(['darkModeEnabled'], (result) => {
@@ -21,7 +31,7 @@ document.addEventListener('DOMContentLoaded', () => {
             if (response && response.success) {
               updateStatus(newDarkModeEnabled);
             } else {
-              status.textContent = 'Failed to apply dark mode.';
+              status.textContent = 'Failed to apply dark mode. Please refresh the page and retry (F5).';
             }
           });
         });

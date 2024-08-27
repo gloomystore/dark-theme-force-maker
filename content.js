@@ -23,12 +23,21 @@ function applyDarkMode() {
   `;
   document.head.appendChild(style);
 
-  // Get all elements and adjust colors
-  const elements = document.querySelectorAll('*');
+  // Apply dark mode to all elements
+  applyDarkModeToElements(document);
+
+  // Apply dark mode to elements within iframes and shadow roots
+  handleIframesAndShadows(document);
+}
+
+// Function to apply dark mode to all elements
+function applyDarkModeToElements(root) {
+  const elements = root.querySelectorAll('*');
   elements.forEach(element => {
-    const bgColor = getComputedStyle(element).backgroundColor;
-    const textColor = getComputedStyle(element).color;
-    const borderColor = getComputedStyle(element).borderColor;
+    const computedStyle = getComputedStyle(element);
+    const bgColor = computedStyle.backgroundColor;
+    const textColor = computedStyle.color;
+    const borderColor = computedStyle.borderColor;
     
     if (isLightColor(bgColor)) {
       element.style.backgroundColor = '#121212';
@@ -49,18 +58,62 @@ function applyDarkMode() {
 
 // Function to remove dark mode
 function removeDarkMode() {
-  // Remove the dark mode styles
   const style = document.getElementById('dark-mode-styles');
   if (style) {
     style.remove();
   }
 
-  // Reset colors to default
-  const elements = document.querySelectorAll('*');
+  resetColors(document);
+
+  // Remove dark mode from iframes and shadow roots
+  handleIframesAndShadows(document, true);
+}
+
+// Function to reset colors to default
+function resetColors(root) {
+  const elements = root.querySelectorAll('*');
   elements.forEach(element => {
     element.style.removeProperty('background-color');
     element.style.removeProperty('color');
     element.style.removeProperty('border-color');
+  });
+}
+
+// Function to handle iframes and shadow roots
+function handleIframesAndShadows(root, remove = false) {
+  // Process iframes
+  const iframes = root.querySelectorAll('iframe');
+  iframes.forEach(iframe => {
+    try {
+      const iframeDoc = iframe.contentDocument || iframe.contentWindow.document;
+      if (iframeDoc) {
+        requestAnimationFrame(() => {
+          if (remove) {
+            resetColors(iframeDoc);
+          } else {
+            applyDarkModeToElements(iframeDoc);
+          }
+          handleIframesAndShadows(iframeDoc, remove);
+        });
+      }
+    } catch (e) {
+      console.error('Cross-Origin Error accessing iframe:', e);
+    }
+  });
+
+  // Process shadow roots
+  const elements = root.querySelectorAll('*');
+  elements.forEach(element => {
+    if (element.shadowRoot) {
+      requestAnimationFrame(() => {
+        if (remove) {
+          resetColors(element.shadowRoot);
+        } else {
+          applyDarkModeToElements(element.shadowRoot);
+        }
+        handleIframesAndShadows(element.shadowRoot, remove);
+      });
+    }
   });
 }
 
@@ -72,7 +125,7 @@ function isLightColor(color) {
     const g = parseInt(rgb[1], 10);
     const b = parseInt(rgb[2], 10);
     const hsl = rgbToHsl(r, g, b);
-    return hsl[2] > 0.3; // Light color if lightness > 30%
+    return hsl[2] > 0.45; // Light color if lightness > 30%
   }
   return false;
 }
