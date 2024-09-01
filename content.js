@@ -11,47 +11,66 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
 
 // Function to apply dark mode
 function applyDarkMode() {
-  // Create a <style> element to hold the dark mode styles
   const style = document.createElement('style');
   style.id = 'dark-mode-styles';
-  style.textContent = `
-    body {
-      background-color: #121212 !important;
-      color: #e0e0e0 !important;
+  style.innerHTML = `
+    html, body, div, span, applet, object, iframe,
+    h1, h2, h3, h4, h5, h6, p, blockquote, pre,
+    a, abbr, acronym, address, big, cite, code,
+    del, dfn, em, img, ins, kbd, q, s, samp,
+    small, strike, strong, sub, sup, tt, var,
+    b, u, i, center, dl, dt, dd, ol, ul, li,
+    fieldset, form, label, legend, table, caption,
+    tbody, tfoot, thead, tr, th, td, article, aside,
+    canvas, details, embed, figure, figcaption, footer,
+    header, hgroup, menu, nav, output, ruby, section,
+    summary, time, mark, audio, video {
+      background-color: #333 !important;
+      color: #eee !important;
     }
-    /* Add more styles as needed */
+
+    a {
+      color: #bb86fc !important;
+      * {
+        color: #bb86fc !important;
+      }
+    }
   `;
-  document.head.appendChild(style);
+  
+  // Append the style element to the document's body
+  document.body.appendChild(style);
 
-  // Apply dark mode to all elements
-  applyDarkModeToElements(document);
+  // Apply dark mode to elements with borders
+  applyDarkModeToBorders(document);
 
-  // Apply dark mode to elements within iframes and shadow roots
+  // Apply dark mode to iframes and shadow DOMs
   handleIframesAndShadows(document);
 }
 
-// Function to apply dark mode to all elements
-function applyDarkModeToElements(root) {
+// Function to apply dark mode to elements with border-color
+function applyDarkModeToBorders(root) {
   const elements = root.querySelectorAll('*');
   elements.forEach(element => {
     const computedStyle = getComputedStyle(element);
-    const bgColor = computedStyle.backgroundColor;
-    const textColor = computedStyle.color;
-    const borderColor = computedStyle.borderColor;
     
-    if (isLightColor(bgColor)) {
-      element.style.backgroundColor = '#121212';
-      element.style.color = '#e0e0e0';
-      
-      if (element.tagName === 'A') {
-        element.style.color = '#bb86fc';
-      }
+    // Check border-color for all sides
+    const borderTopColor = computedStyle.borderTopColor;
+    const borderRightColor = computedStyle.borderRightColor;
+    const borderBottomColor = computedStyle.borderBottomColor;
+    const borderLeftColor = computedStyle.borderLeftColor;
+
+    // Apply dark mode colors if any border color is present
+    if (borderTopColor && borderTopColor !== 'rgba(0, 0, 0, 0)') {
+      element.style.setProperty('border-top-color', '#888', 'important');
     }
-    if (isDarkColor(textColor)) {
-      element.style.color = '#e0e0e0';
+    if (borderRightColor && borderRightColor !== 'rgba(0, 0, 0, 0)') {
+      element.style.setProperty('border-right-color', '#888', 'important');
     }
-    if (isDarkColor(borderColor)) {
-      element.style.borderColor = '#e0e0e0';
+    if (borderBottomColor && borderBottomColor !== 'rgba(0, 0, 0, 0)') {
+      element.style.setProperty('border-bottom-color', '#888', 'important');
+    }
+    if (borderLeftColor && borderLeftColor !== 'rgba(0, 0, 0, 0)') {
+      element.style.setProperty('border-left-color', '#888', 'important');
     }
   });
 }
@@ -63,20 +82,8 @@ function removeDarkMode() {
     style.remove();
   }
 
-  resetColors(document);
-
-  // Remove dark mode from iframes and shadow roots
+  // Reset styles in iframes and shadow DOMs
   handleIframesAndShadows(document, true);
-}
-
-// Function to reset colors to default
-function resetColors(root) {
-  const elements = root.querySelectorAll('*');
-  elements.forEach(element => {
-    element.style.removeProperty('background-color');
-    element.style.removeProperty('color');
-    element.style.removeProperty('border-color');
-  });
 }
 
 // Function to handle iframes and shadow roots
@@ -89,9 +96,10 @@ function handleIframesAndShadows(root, remove = false) {
       if (iframeDoc) {
         requestAnimationFrame(() => {
           if (remove) {
-            resetColors(iframeDoc);
+            const style = iframeDoc.getElementById('dark-mode-styles');
+            if (style) style.remove();
           } else {
-            applyDarkModeToElements(iframeDoc);
+            applyDarkModeToDocument(iframeDoc);
           }
           handleIframesAndShadows(iframeDoc, remove);
         });
@@ -107,9 +115,10 @@ function handleIframesAndShadows(root, remove = false) {
     if (element.shadowRoot) {
       requestAnimationFrame(() => {
         if (remove) {
-          resetColors(element.shadowRoot);
+          const style = element.shadowRoot.getElementById('dark-mode-styles');
+          if (style) style.remove();
         } else {
-          applyDarkModeToElements(element.shadowRoot);
+          applyDarkModeToDocument(element.shadowRoot);
         }
         handleIframesAndShadows(element.shadowRoot, remove);
       });
@@ -117,57 +126,37 @@ function handleIframesAndShadows(root, remove = false) {
   });
 }
 
-// Function to check if a color is light
-function isLightColor(color) {
-  const rgb = color.match(/\d+/g);
-  if (rgb) {
-    const r = parseInt(rgb[0], 10);
-    const g = parseInt(rgb[1], 10);
-    const b = parseInt(rgb[2], 10);
-    const hsl = rgbToHsl(r, g, b);
-    return hsl[2] > 0.45; // Light color if lightness > 30%
-  }
-  return false;
-}
-
-// Function to check if a color is dark
-function isDarkColor(color) {
-  const rgb = color.match(/\d+/g);
-  if (rgb) {
-    const r = parseInt(rgb[0], 10);
-    const g = parseInt(rgb[1], 10);
-    const b = parseInt(rgb[2], 10);
-    const hsl = rgbToHsl(r, g, b);
-    return hsl[2] < 0.6; // Dark color if lightness < 60%
-  }
-  return false;
-}
-
-// Function to convert RGB to HSL
-function rgbToHsl(r, g, b) {
-  r /= 255;
-  g /= 255;
-  b /= 255;
-  
-  const max = Math.max(r, g, b);
-  const min = Math.min(r, g, b);
-  const l = (max + min) / 2;
-  let h, s;
-  
-  if (max === min) {
-    h = s = 0; // achromatic
-  } else {
-    const d = max - min;
-    s = l > 0.5 ? d / (2 - max - min) : d / (max + min);
-    switch (max) {
-      case r: h = (g - b) / d + (g < b ? 6 : 0); break;
-      case g: h = (b - r) / d + 2; break;
-      case b: h = (r - g) / d + 4; break;
+// Function to apply dark mode to a document
+function applyDarkModeToDocument(doc) {
+  const style = doc.createElement('style');
+  style.id = 'dark-mode-styles';
+  style.innerHTML = `
+    html, body, div, span, applet, object, iframe,
+    h1, h2, h3, h4, h5, h6, p, blockquote, pre,
+    a, abbr, acronym, address, big, cite, code,
+    del, dfn, em, img, ins, kbd, q, s, samp,
+    small, strike, strong, sub, sup, tt, var,
+    b, u, i, center, dl, dt, dd, ol, ul, li,
+    fieldset, form, label, legend, table, caption,
+    tbody, tfoot, thead, tr, th, td, article, aside,
+    canvas, details, embed, figure, figcaption, footer,
+    header, hgroup, menu, nav, output, ruby, section,
+    summary, time, mark, audio, video {
+      background-color: #333 !important;
+      color: #eee !important;
     }
-    h /= 6;
-  }
-  
-  return [h, s, l];
+
+    a {
+      color: #bb86fc !important;
+      * {
+        color: #bb86fc !important;
+      }
+    }
+  `;
+  doc.body.appendChild(style);
+
+  // Apply dark mode to elements with borders
+  applyDarkModeToBorders(doc);
 }
 
 // Automatically apply dark mode on page load based on stored preference
