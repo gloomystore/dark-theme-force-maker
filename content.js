@@ -1,4 +1,4 @@
-// Listener for messages from popup.js
+// popup.js로부터 메시지를 수신하는 리스너
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   if (message.action === 'applyDarkMode') {
     applyDarkMode();
@@ -9,9 +9,9 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   }
 });
 
-// Function to apply dark mode
+// 다크 모드를 적용하는 함수
 function applyDarkMode() {
-  // Create a <style> element to hold the dark mode styles
+  // 다크 모드 스타일을 담을 <style> 요소 생성
   const style = document.createElement('style');
   style.id = 'dark-mode-styles';
   style.textContent = `
@@ -30,31 +30,41 @@ function applyDarkMode() {
   `;
   document.head.appendChild(style);
 
-  // Apply dark mode to all elements
+  // 모든 요소에 다크 모드 적용
   applyDarkModeToElements(document);
 
-  // Apply dark mode to elements within iframes and shadow roots
+  // iframe과 shadow root 내 요소에 다크 모드 적용
   handleIframesAndShadows(document);
 
-  // Reapply dark mode after 500ms to catch dynamically loaded content
-  // setTimeout(() => {
-  //   applyDarkModeToElements(document);
-  //   handleIframesAndShadows(document);
-  // }, 500);
+  // 500ms 후에 다이나믹하게 로드된 콘텐츠에 다시 다크 모드 적용
+  clearTimeout(timeout)
+  timeout = setTimeout(() => {
+    applyDarkModeToElements(document);
+    handleIframesAndShadows(document);
+  }, 500);
 
-  // Observe DOM changes for infinite scroll content
+  // DOM 변경 감시
   observeDomChanges();
 }
 
-// Function to observe DOM changes and apply dark mode to new elements
+
+let timeout = null;
+
+// DOM 변경을 감시하고 새로 추가된 요소에 다크 모드를 적용하는 함수
 function observeDomChanges() {
   const observer = new MutationObserver((mutations) => {
     mutations.forEach((mutation) => {
       if (mutation.addedNodes.length) {
         mutation.addedNodes.forEach((node) => {
           if (node.nodeType === 1) { // Element node
-            applyDarkModeToElements(node);
+            applyDarkModeToElements(node.parentElement);
             handleIframesAndShadows(node);
+            // 500ms 후에 다이나믹하게 로드된 콘텐츠에 다시 다크 모드 적용
+            // clearTimeout(timeout)
+            // timeout = setTimeout(() => {
+            //   applyDarkModeToElementsWithoutConfirmation(node);
+            //   handleIframesAndShadows(node);
+            // }, 500);
           }
         });
       }
@@ -64,81 +74,95 @@ function observeDomChanges() {
   observer.observe(document.body, { childList: true, subtree: true });
 }
 
-// Function to apply dark mode to all elements
+// 모든 요소에 다크 모드를 적용하는 함수
 function applyDarkModeToElements(root) {
-  const elements = root.querySelectorAll('*');
-  elements.forEach(element => {
-    const computedStyle = getComputedStyle(element);
-    const bgColor = computedStyle.backgroundColor;
-    const bgImage = computedStyle.backgroundImage;
-    const textColor = computedStyle.color;
+  requestAnimationFrame(() => {
+    const elements = root.querySelectorAll('*');
+    elements.forEach(element => {
+      const computedStyle = getComputedStyle(element);
+      const bgColor = computedStyle.backgroundColor;
+      const bgImage = computedStyle.backgroundImage;
+      const textColor = computedStyle.color;
 
-    const borderTopColor = computedStyle.borderTopColor;
-    const borderRightColor = computedStyle.borderRightColor;
-    const borderBottomColor = computedStyle.borderBottomColor;
-    const borderLeftColor = computedStyle.borderLeftColor;
+      const borderTopColor = computedStyle.borderTopColor;
+      const borderRightColor = computedStyle.borderRightColor;
+      const borderBottomColor = computedStyle.borderBottomColor;
+      const borderLeftColor = computedStyle.borderLeftColor;
 
-    // Handle background color or gradient
-    if (bgImage.startsWith('linear-gradient')) {
-      const gradientBrightness = parseGradient(bgImage);
-      if (gradientBrightness > 0.45) {
-        element.style.backgroundColor = '#121212';
-        element.style.backgroundImage = 'linear-gradient(#121212, #121212)';
+      if (bgImage.startsWith('linear-gradient')) {
+        const gradientBrightness = parseGradient(bgImage);
+        if (gradientBrightness > 0.45) {
+          element.style.setProperty('background-color', '#333', 'important');
+          element.style.setProperty('background-image', 'linear-gradient(#333, #333)', 'important');
+        }
+      } else if (isLightColor(bgColor)) {
+        element.style.setProperty('background-color', '#333', 'important');
+        element.style.setProperty('color', '#e0e0e0', 'important');
+
+        if (element.tagName === 'A' || element.tagName === 'BUTTON') {
+          element.style.setProperty('color', '#5288ff', 'important');
+          element.style.setProperty('background-color', '#555', 'important');
+        } else if (element.tagName === 'BODY') {
+          element.style.setProperty('color', '#e0e0e0', 'important');
+          element.style.setProperty('background-color', '#121212', 'important');
+        } else if (element.tagName === 'ARTICLE') {
+          element.style.setProperty('color', '#e0e0e0', 'important');
+          element.style.setProperty('background-color', '#232323', 'important');
+        } else if (element.tagName === 'INPUT' || element.tagName === 'LABEL') {
+          element.style.setProperty('color', '#e0e0e0', 'important');
+          element.style.setProperty('background-color', '#232323', 'important');
+        } else {
+          element.style.setProperty('color', '#e0e0e0', 'important');
+          element.style.setProperty('background-color', '#222', 'important');
+        }
       }
-    } else if (isLightColor(bgColor)) {
-      element.style.backgroundColor = '#121212';
-      element.style.color = '#e0e0e0';
 
-      if (element.tagName === 'A') {
-        element.style.color = '#bb86fc';
+      if (isDarkColor(textColor)) {
+        element.style.setProperty('color', '#e0e0e0', 'important');
+        if (element.tagName === 'A') {
+          element.style.setProperty('color', '#5288ff', 'important');
+        }
       }
-    }
-
-    if (isDarkColor(textColor)) {
-      element.style.color = '#e0e0e0';
-      if (element.tagName === 'A') {
-        element.style.color = '#bb86fc';
+      if (isDarkColor(borderTopColor)) {
+        element.style.setProperty('border-top-color', '#e0e0e0', 'important');
       }
-    }
-    if (isDarkColor(borderTopColor)) {
-      element.style.borderTopColor = '#e0e0e0';
-    }
-    if (isDarkColor(borderRightColor)) {
-      element.style.borderRightColor = '#e0e0e0';
-    }
-    if (isDarkColor(borderBottomColor)) {
-      element.style.borderBottomColor = '#e0e0e0';
-    }
-    if (isDarkColor(borderLeftColor)) {
-      element.style.borderLeftColor = '#e0e0e0';
-    }
+      if (isDarkColor(borderRightColor)) {
+        element.style.setProperty('border-right-color', '#e0e0e0', 'important');
+      }
+      if (isDarkColor(borderBottomColor)) {
+        element.style.setProperty('border-bottom-color', '#e0e0e0', 'important');
+      }
+      if (isDarkColor(borderLeftColor)) {
+        element.style.setProperty('border-left-color', '#e0e0e0', 'important');
+      }
 
-    // Handle SVG elements
-    if (element.tagName === 'svg' || 
-      element.tagName === 'path' || 
-      element.tagName === 'circle' || 
-      element.tagName === 'ellipse' || 
-      element.tagName === 'rect' || 
-      element.tagName === 'line' || 
-      element.tagName === 'polygon' || 
-      element.tagName === 'polyline') {
-      handleSvgElements(element);
-    }
+      // svg 변경
+      if (element.tagName === 'svg' || 
+          element.tagName === 'path' || 
+          element.tagName === 'circle' || 
+          element.tagName === 'ellipse' || 
+          element.tagName === 'rect' || 
+          element.tagName === 'line' || 
+          element.tagName === 'polygon' || 
+          element.tagName === 'polyline') {
+        handleSvgElements(element);
+      }
+    });
   });
 }
 
-// Function to handle SVG elements specifically
+// SVG 요소를 다루는 함수
 function handleSvgElements(element) {
   if (element.hasAttribute('fill')) {
-    element.setAttribute('fill', '#999');
+    element.setAttribute('fill', '#999', 'important');
   }
 
   if (element.hasAttribute('stroke')) {
-    element.setAttribute('stroke', '#999');
+    element.setAttribute('stroke', '#999', 'important');
   }
 }
 
-// Function to remove dark mode
+// 다크모드 제거
 function removeDarkMode() {
   const style = document.getElementById('dark-mode-styles');
   if (style) {
@@ -147,11 +171,11 @@ function removeDarkMode() {
 
   resetColors(document);
 
-  // Remove dark mode from iframes and shadow roots
+  // iframe 다크모드 제거
   handleIframesAndShadows(document, true);
 }
 
-// Function to reset colors to default
+// 기본 모드로 리셋
 function resetColors(root) {
   const elements = root.querySelectorAll('*');
   elements.forEach(element => {
@@ -180,9 +204,9 @@ function resetColors(root) {
   });
 }
 
-// Function to handle iframes and shadow roots
+// iframe 및 shadow root를 처리하는 함수
 function handleIframesAndShadows(root, remove = false) {
-  // Process iframes
+  // iframe 처리
   const iframes = root.querySelectorAll('iframe');
   iframes.forEach(iframe => {
     try {
@@ -198,11 +222,11 @@ function handleIframesAndShadows(root, remove = false) {
         });
       }
     } catch (e) {
-      console.error('Cross-Origin Error accessing iframe:', e);
+      console.error('Cross-Origin 에러로 인해 iframe 접근 불가:', e);
     }
   });
 
-  // Process shadow roots
+  // shadow root 처리
   const elements = root.querySelectorAll('*');
   elements.forEach(element => {
     if (element.shadowRoot) {
@@ -218,14 +242,14 @@ function handleIframesAndShadows(root, remove = false) {
   });
 }
 
-// Function to check if a color is light
+// 색상이 밝은지 확인하는 함수
 function isLightColor(color) {
   if (!color) return false;
 
   if (color.startsWith('#')) {
     const rgb = hexToRgb(color);
     const hsl = rgbToHsl(...rgb);
-    return hsl[2] > 0.45; // Light color if lightness > 45%
+    return hsl[2] > 0.45; // 밝은 색상 여부를 lightness > 45%로 판별
   } else if (color.startsWith('rgb')) {
     const rgb = color.match(/\d+/g).map(Number);
     const hsl = rgbToHsl(...rgb);
@@ -235,32 +259,32 @@ function isLightColor(color) {
   return false;
 }
 
-// Function to check if a color is dark
+// 색상이 어두운지 확인하는 함수
 function isDarkColor(color) {
   if (!color) return false;
 
   if (color.startsWith('#')) {
     const rgb = hexToRgb(color);
     const hsl = rgbToHsl(...rgb);
-    return hsl[2] < 0.6; // Dark color if lightness < 60%
+    return hsl[2] < 0.45; // 어두운 색상 여부를 lightness < 60%로 판별
   } else if (color.startsWith('rgb')) {
     const rgb = color.match(/\d+/g).map(Number);
     const hsl = rgbToHsl(...rgb);
-    return hsl[2] < 0.6;
+    return hsl[2] < 0.45;
   }
 
   return false;
 }
 
-// Function to parse and calculate brightness of a gradient
+// 그라디언트의 밝기를 계산하는 함수
 function parseGradient(gradient) {
-  // Use regex to extract colors from the gradient
+  // 그라디언트에서 색상을 추출하는 정규식
   const colorRegex = /rgba?\(([^)]+)\)|#[0-9a-fA-F]{3,6}/g;
   let matches = gradient.match(colorRegex);
   
   if (!matches) return null;
 
-  // Calculate the brightness of each color
+  // 각 색상의 밝기를 계산
   let totalLightness = 0;
   matches.forEach(color => {
     let rgb;
@@ -270,14 +294,14 @@ function parseGradient(gradient) {
       rgb = hexToRgb(color);
     }
     let hsl = rgbToHsl(...rgb);
-    totalLightness += hsl[2]; // Lightness
+    totalLightness += hsl[2]; // 밝기 값
   });
 
-  // Return the average brightness
+  // 평균 밝기를 반환
   return totalLightness / matches.length;
 }
 
-// Function to convert hex color to RGB
+// 16진수 색상을 RGB로 변환하는 함수
 function hexToRgb(hex) {
   hex = hex.replace('#', '');
   if (hex.length === 3) {
@@ -287,7 +311,7 @@ function hexToRgb(hex) {
   return [(bigint >> 16) & 255, (bigint >> 8) & 255, bigint & 255];
 }
 
-// Function to convert RGB to HSL
+// RGB를 HSL로 변환하는 함수
 function rgbToHsl(r, g, b) {
   r /= 255;
   g /= 255;
@@ -299,7 +323,7 @@ function rgbToHsl(r, g, b) {
   let h, s;
   
   if (max === min) {
-    h = s = 0; // achromatic
+    h = s = 0; // 무채색
   } else {
     const d = max - min;
     s = l > 0.5 ? d / (2 - max - min) : d / (max + min);
@@ -314,7 +338,7 @@ function rgbToHsl(r, g, b) {
   return [h, s, l];
 }
 
-// Automatically apply dark mode on page load based on stored preference
+// 저장된 선호도에 따라 페이지 로드 시 다크 모드 자동 적용
 chrome.storage.local.get(['darkModeEnabled'], (result) => {
   const darkModeEnabled = result.darkModeEnabled || false;
   if (darkModeEnabled) {

@@ -1,12 +1,8 @@
 ## Changelog
 
-### 1.0.2
-- **Enhanced Dark Mode Application for a Wider Range of Colors**  
-  Improved the dark mode functionality by extending its application to a broader spectrum of colors. Leveraged advanced color analysis using HSL (Hue, Saturation, Lightness) to identify and convert not only light shades but also intermediate gray tones to a deeper, more consistent dark theme. This update ensures that a greater variety of background and text colors are converted to dark mode, enhancing readability and user experience across diverse websites.
-
-### 1.0.3
-- **Expanded Support for iFrames and Shadow DOM**  
-  Introduced comprehensive support for applying dark mode within embedded iFrames and Shadow DOMs. This update ensures that dark mode styles are propagated seamlessly across all nested content, including third-party embedded content and encapsulated components within Shadow DOM. The extension now fully integrates dark mode across all layers of web page structures, providing a unified and immersive dark theme experience regardless of content embedding or web component isolation.
+### 1.0.5
+- **Background Color Adaptation for ```<a>``` and ```<button>``` Elements**  
+  Added the ability to detect and apply dark mode to background colors of ```<a>``` (anchor) and ```<button>``` elements. Previously, these elements were not included in the dark mode adaptation if they had custom background colors. With this update, both anchor and button elements will now seamlessly adapt their background to a darker shade when dark mode is enabled, ensuring consistent visual coherence across all interactive elements on the page.
 
 ### 1.0.4
 - **Enhanced Border Color Adaptation in Dark Mode**  
@@ -17,3 +13,12 @@
   Added support for adapting the colors of SVG elements in dark mode. This includes handling fill and stroke properties for various SVG shapes such as ```<path>, <circle>, <ellipse>, <rect>, <line>, <polygon>, and <polyline>```. Previously unstyled SVG elements are now given default dark colors to ensure they align with the dark mode theme.
 - **Mutation Observer for Dynamic Content**  
   Implemented a Mutation Observer to monitor and apply dark mode styles to newly added content on the page. This feature ensures that dark mode adapts to dynamically loaded content, such as infinite scrolling or AJAX-loaded elements, providing consistent theming without requiring page reloads.
+
+### 1.0.3
+- **Expanded Support for iFrames and Shadow DOM**  
+  Introduced comprehensive support for applying dark mode within embedded iFrames and Shadow DOMs. This update ensures that dark mode styles are propagated seamlessly across all nested content, including third-party embedded content and encapsulated components within Shadow DOM. The extension now fully integrates dark mode across all layers of web page structures, providing a unified and immersive dark theme experience regardless of content embedding or web component isolation.
+
+
+### 1.0.2
+- **Enhanced Dark Mode Application for a Wider Range of Colors**  
+  Improved the dark mode functionality by extending its application to a broader spectrum of colors. Leveraged advanced color analysis using HSL (Hue, Saturation, Lightness) to identify and convert not only light shades but also intermediate gray tones to a deeper, more consistent dark theme. This update ensures that a greater variety of background and text colors are converted to dark mode, enhancing readability and user experience across diverse websites.

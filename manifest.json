@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Dark Theme Force Maker",
-  "version": "1.0.4",
+  "version": "1.0.5",
   "description": "A tool to force dark mode on websites that do not support it by applying custom CSS.",
   "homepage_url": "https://www.gloomy-store.com",
   "permissions": [
