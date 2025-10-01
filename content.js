@@ -1,7 +1,16 @@
 // popup.js 메시지 수신
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   if (message.action === 'applyDarkMode') {
-    applyDarkMode();
+    applyDarkMode(); // 일반 모드
+    sendResponse({ success: true });
+  } else if (message.action === 'applyDarkModePerformance') {
+    applyPerformanceDarkMode(); // 성능 모드
+    sendResponse({ success: true });
+  } else if (message.action === 'applyDarkModeDirect') {
+    applyDirectDarkMode(); // 직접 스타일 조작 모드
+    sendResponse({ success: true });
+  } else if (message.action === 'applyDarkModeUltra') {
+    applyUltraDarkMode(); // 울트라 모드
     sendResponse({ success: true });
   } else if (message.action === 'removeDarkMode') {
     removeDarkMode();
@@ -11,61 +20,95 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
 
 let timeout = null;
 
-// 다크모드 스타일 주입
+// ==================================================
+// 1. 클래스 기반 다크모드 (스타일 시트 삽입)
+// ==================================================
 function injectDarkModeStyle() {
   if (document.getElementById("dark-mode-styles")) return;
 
-  const style = document.createElement("style");
-  style.id = "dark-mode-styles";
-  style.textContent = `
-    body.gloomy-dark-body {
-      background-color: #121212 !important;
-      color: #e0e0e0 !important;
-    }
+  const purples = [
+    "#0f0e0f", "#1a171a", "#242024", "#2e292e", "#383238",
+    "#423b42", "#4c444c", "#564d56", "#605660", "#6a5f6a"
+  ];
+  const tags = [
+    "html","body","div","span","section","article","button","a","label","input","pre","code",
+    "table","tr","td","th","ul","li","nav","header","footer","main","aside",
+    "form","textarea","select","option","img","p","h1","h2","h3","h4","h5","h6"
+  ];
 
-    .gloomy-dark-article {
-      background-color: #232323 !important;
-      color: #e0e0e0 !important;
-    }
+  let css = `
+    .gloomy-dark-border { border-color: #e0e0e0 !important; }
+    .gloomy-dark-svg { fill: #aaa !important; stroke: #aaa !important; }
 
-    .gloomy-dark-input, .gloomy-dark-label {
-      background-color: #232323 !important;
-      color: #e0e0e0 !important;
-    }
-
-    .gloomy-dark-button, .gloomy-dark-link {
-      background-color: #555 !important;
-      color: #5288ff !important;
-    }
-
-    .gloomy-dark-default {
-      background-color: #222 !important;
-      color: #e0e0e0 !important;
-    }
-
-    .gloomy-dark-border {
-      border-color: #e0e0e0 !important;
-    }
-
-    .gloomy-dark-svg {
-      fill: #999 !important;
-      stroke: #999 !important;
-    }
-
-    /* 🔹 모든 요소의 before/after 강제 다크모드 적용 */
+    /* before/after 공통 */
     *::before, *::after {
       background-color: inherit !important;
       color: inherit !important;
       border-color: inherit !important;
     }
+
+    /* Hover (링크, 버튼, form 요소 위주) */
+    a:hover, button:hover, input:hover, select:hover, textarea:hover {
+      background-color: #2e2b2e !important;
+      color: #f0f0f0 !important;
+      border-color: #7a6a8a !important;
+    }
+
+    /* Active (클릭되는 요소) */
+    a:active, button:active, input:active, select:active, textarea:active {
+      background-color: #1d1a1d !important;
+      color: #ffffff !important;
+      border-color: #a080c0 !important;
+    }
+
+    /* Focus (form 입력 요소 + 버튼 + 링크) */
+    a:focus, button:focus, input:focus, select:focus, textarea:focus,
+    a:focus-visible, button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-visible {
+      outline: 2px solid #b38aff !important;
+      outline-offset: 2px !important;
+      background-color: #242024 !important;
+      color: #ffffff !important;
+    }
+
+    /* Disabled (form 요소 + 버튼) */
+    button:disabled, input:disabled, select:disabled, textarea:disabled {
+      background-color: #3a3a3a !important;
+      color: #888 !important;
+      border-color: #555 !important;
+      cursor: not-allowed !important;
+    }
+
+    /* 방문한 링크 */
+    a:visited {
+      color: #c080ff !important;
+    }
   `;
+
+  tags.forEach(tag => {
+    purples.forEach((color, i) => {
+      css += `
+        .gloomy-dark-${tag}${i+1} {
+          background-color:${color}!important;
+          color:#e0e0e0!important;
+          border-color:#6a5a7a!important;
+        }
+      `;
+    });
+  });
+
+  const style = document.createElement("style");
+  style.id = "dark-mode-styles";
+  style.textContent = css;
   document.head.appendChild(style);
 }
 
-// 다크 모드 적용
+// ==================================================
+// 2. 일반 다크모드 (빠른 batch)
+// ==================================================
+let lastApplyTimeFast = 0, applyScheduledFast = false;
+
 function applyDarkMode() {
   injectDarkModeStyle();
-
   applyDarkModeToElements(document);
   handleIframesAndShadows(document);
 
@@ -75,191 +118,270 @@ function applyDarkMode() {
     handleIframesAndShadows(document);
   }, 500);
 
-  observeDomChanges();
+  observeDomChanges("fast");
 }
 
-// DOM 변경 감시
-// DOM 변경 감시 (노드 추가 + 속성 변경까지 감시)
-function observeDomChanges() {
-  const observer = new MutationObserver(mutations => {
-    mutations.forEach(mutation => {
-      if (mutation.type === "childList" && mutation.addedNodes.length) {
-        mutation.addedNodes.forEach(node => {
-          if (node.nodeType === 1) {
-            applyDarkModeToElements(node.parentElement);
-            handleIframesAndShadows(node);
-          }
-        });
-      }
-
-      // 🔹 class 속성이 변경된 경우
-      if (mutation.type === "attributes" && mutation.attributeName === "class") {
-        const el = mutation.target;
-        // 다시 dark mode class 적용
-        applyDarkModeToElements(el);
-      }
-    });
-  });
-
-  observer.observe(document.body, { 
-    childList: true, 
-    subtree: true, 
-    attributes: true,     // 속성 변경 감시
-    attributeFilter: ["class"] // class 변경만 감시
-  });
-}
-
-// 모든 요소 다크모드 처리
 function applyDarkModeToElements(root) {
+  if (!root) return;
+  const now = Date.now();
+  if (lastApplyTimeFast && now - lastApplyTimeFast < 50) {
+    if (!applyScheduledFast) {
+      applyScheduledFast = true;
+      setTimeout(() => {
+        applyScheduledFast = false;
+        applyDarkModeToElements(root);
+      }, 50);
+    }
+    return;
+  }
+  lastApplyTimeFast = now;
+
+  const elements = root.querySelectorAll('*');
+  let index = 0;
+  function batch() {
+    const end = Math.min(index + 500, elements.length);
+    for (; index < end; index++) processElement(elements[index]);
+    if (index < elements.length) setTimeout(batch, 10);
+  }
+  batch();
+}
+
+// ==================================================
+// 3. 성능 모드 다크모드 (느린 batch)
+// ==================================================
+let lastApplyTime = 0, applyScheduled = false;
+
+function applyPerformanceDarkMode() {
+  injectDarkModeStyle();
+  applyThrottleDarkModeToElements(document);
+  handleIframesAndShadows(document);
+
+  clearTimeout(timeout);
+  timeout = setTimeout(() => {
+    applyThrottleDarkModeToElements(document);
+    handleIframesAndShadows(document);
+  }, 500);
+
+  observeDomChanges("slow");
+}
+
+function applyThrottleDarkModeToElements(root) {
+  if (!root) return;
+  const now = Date.now();
+  if (lastApplyTime && now - lastApplyTime < 500) {
+    if (!applyScheduled) {
+      applyScheduled = true;
+      setTimeout(() => {
+        applyScheduled = false;
+        applyThrottleDarkModeToElements(root);
+      }, 500);
+    }
+    return;
+  }
+  lastApplyTime = now;
+
+  const elements = root.querySelectorAll('*');
+  let index = 0;
+  function batch() {
+    const end = Math.min(index + 50, elements.length);
+    for (; index < end; index++) processElement(elements[index]);
+    if (index < elements.length) setTimeout(batch, 200);
+  }
+  batch();
+}
+
+// ==================================================
+// 4. 직접 스타일 조작 모드
+// ==================================================
+function applyDirectDarkMode() {
+  const style = document.createElement('style');
+  style.id = 'dark-mode-styles';
+  style.textContent = `body { background-color:#121212!important; color:#e0e0e0!important; }`;
+  document.head.appendChild(style);
+
+  applyDirectDarkModeToElements(document);
+  handleIframesAndShadows(document);
+
+  clearTimeout(timeout);
+  timeout = setTimeout(() => {
+    applyDirectDarkModeToElements(document);
+    handleIframesAndShadows(document);
+  }, 500);
+
+  observeDomChanges("direct");
+}
+
+function applyDirectDarkModeToElements(root) {
   if (!root) return;
   requestAnimationFrame(() => {
     const elements = root.querySelectorAll('*');
-    elements.forEach(element => {
-      const computedStyle = getComputedStyle(element);
-      const bgColor = computedStyle.backgroundColor;
-      const textColor = computedStyle.color;
-
-      // 배경이 밝고 투명도가 낮지 않으면 class 추가
-      if (isLightColor(bgColor)) {
-        if (element.tagName === 'BODY') {
-          element.classList.add("gloomy-dark-body");
-        } else if (element.tagName === 'ARTICLE') {
-          element.classList.add("gloomy-dark-article");
-        } else if (element.tagName === 'INPUT' || element.tagName === 'LABEL') {
-          element.classList.add("gloomy-dark-input");
-        } else if (element.tagName === 'A') {
-          element.classList.add("gloomy-dark-link");
-        } else if (element.tagName === 'BUTTON') {
-          element.classList.add("gloomy-dark-button");
-        } else {
-          element.classList.add("gloomy-dark-default");
-        }
+    elements.forEach(el => {
+      const cs = getComputedStyle(el);
+      if (isLightColor(cs.backgroundColor)) {
+        el.style.setProperty("background-color", "#222", "important");
+        el.style.setProperty("color", "#e0e0e0", "important");
       }
-
-      // 텍스트 색이 어두우면 글자색 class
-      if (isDarkColor(textColor)) {
-        if (element.tagName === 'A') {
-          element.classList.add("gloomy-dark-link");
-        } else {
-          element.classList.add("gloomy-dark-default");
-        }
-      }
-
-      // 보더 처리
-      const borders = [
-        computedStyle.borderTopColor,
-        computedStyle.borderRightColor,
-        computedStyle.borderBottomColor,
-        computedStyle.borderLeftColor
-      ];
-      if (borders.some(c => isDarkColor(c))) {
-        element.classList.add("gloomy-dark-border");
-      }
-
-      // svg
-      if (["svg","path","circle","ellipse","rect","line","polygon","polyline"].includes(element.tagName.toLowerCase())) {
-        element.classList.add("gloomy-dark-svg");
+      if (isDarkColor(cs.color)) {
+        el.style.setProperty("color", "#e0e0e0", "important");
       }
     });
   });
 }
 
-// 다크모드 제거
-function removeDarkMode() {
-  const style = document.getElementById("dark-mode-styles");
-  if (style) style.remove();
+// ==================================================
+// 5. 울트라 모드 (클래스 + 직접 스타일 동시 적용)
+// ==================================================
+function applyUltraDarkMode() {
+  injectDarkModeStyle();
+  applyUltraDarkModeToElements(document);
+  handleIframesAndShadows(document);
 
-  const all = document.querySelectorAll("[class*='gloomy-dark-']");
-  all.forEach(el => {
-    el.classList.remove(
-      "gloomy-dark-body","gloomy-dark-article","gloomy-dark-input",
-      "gloomy-dark-label","gloomy-dark-button","gloomy-dark-link",
-      "gloomy-dark-default","gloomy-dark-border","gloomy-dark-svg"
-    );
+  clearTimeout(timeout);
+  timeout = setTimeout(() => {
+    applyUltraDarkModeToElements(document);
+    handleIframesAndShadows(document);
+  }, 500);
+
+  observeDomChanges("ultra");
+}
+
+function applyUltraDarkModeToElements(root) {
+  if (!root) return;
+  const elements = root.querySelectorAll('*');
+  elements.forEach(el => {
+    const cs = getComputedStyle(el);
+    if (isLightColor(cs.backgroundColor)) {
+      const tag = el.tagName.toLowerCase();
+      const randIdx = Math.floor(Math.random() * 10) + 1;
+      el.classList.add(`gloomy-dark-${tag}${randIdx}`);
+      el.style.setProperty("background-color", "#222"); // important ❌
+      el.style.setProperty("color", "#e0e0e0");
+    }
+    if (isDarkColor(cs.color)) {
+      const tag = el.tagName.toLowerCase();
+      el.classList.add(`gloomy-dark-${tag}1`);
+      el.style.setProperty("color", "#e0e0e0");
+    }
   });
 }
 
-// iframe / shadow 처리
-function handleIframesAndShadows(root, remove = false) {
-  const iframes = root.querySelectorAll('iframe');
-  iframes.forEach(iframe => {
-    try {
-      const iframeDoc = iframe.contentDocument || iframe.contentWindow.document;
-      if (iframeDoc) {
-        requestAnimationFrame(() => {
-          if (remove) removeDarkMode();
-          else applyDarkModeToElements(iframeDoc);
-          handleIframesAndShadows(iframeDoc, remove);
-        });
-      }
-    } catch (e) {
-      console.warn("Cross-Origin iframe 접근 불가:", e);
+// ==================================================
+// 공통 처리 함수
+// ==================================================
+function processElement(element) {
+  const cs = getComputedStyle(element);
+  if (isLightColor(cs.backgroundColor)) {
+    const tag = element.tagName.toLowerCase();
+    const randIdx = Math.floor(Math.random() * 10) + 1;
+    element.classList.add(`gloomy-dark-${tag}${randIdx}`);
+  }
+  if (isDarkColor(cs.color)) {
+    const tag = element.tagName.toLowerCase();
+    element.classList.add(`gloomy-dark-${tag}1`);
+  }
+}
+
+// ==================================================
+// 다크모드 제거
+// ==================================================
+function removeDarkMode() {
+  const style = document.getElementById("dark-mode-styles");
+  if (style) style.remove();
+  document.querySelectorAll("[class*='gloomy-dark-']").forEach(el => {
+    if (el.className && typeof el.className === "string") {
+      el.className = el.className.split(" ").filter(c => !c.startsWith("gloomy-dark-")).join(" ");
     }
   });
+  document.querySelectorAll('*').forEach(el => {
+    el.style.removeProperty("background-color");
+    el.style.removeProperty("color");
+    el.style.removeProperty("border-color");
+  });
+}
 
-  const elements = root.querySelectorAll('*');
-  elements.forEach(element => {
-    if (element.shadowRoot) {
+// ==================================================
+// iframe / shadow 처리
+// ==================================================
+function handleIframesAndShadows(root, remove = false) {
+  root.querySelectorAll("iframe").forEach(iframe => {
+    try {
+      const doc = iframe.contentDocument || iframe.contentWindow.document;
+      if (doc) {
+        requestAnimationFrame(() => {
+          if (remove) removeDarkMode(); else applyDarkModeToElements(doc);
+          handleIframesAndShadows(doc, remove);
+        });
+      }
+    } catch {}
+  });
+  root.querySelectorAll('*').forEach(el => {
+    if (el.shadowRoot) {
       requestAnimationFrame(() => {
-        if (remove) removeDarkMode();
-        else applyDarkModeToElements(element.shadowRoot);
-        handleIframesAndShadows(element.shadowRoot, remove);
+        if (remove) removeDarkMode(); else applyDarkModeToElements(el.shadowRoot);
+        handleIframesAndShadows(el.shadowRoot, remove);
       });
     }
   });
 }
 
-// 밝은 색 판별 (알파 포함)
+// ==================================================
+// 색 판별 함수
+// ==================================================
 function isLightColor(color) {
   if (!color) return false;
   if (color.startsWith("rgb")) {
     const parts = color.match(/[\d.]+/g).map(Number);
-    let [r, g, b, a] = parts;
-    if (a === undefined) a = 1;
-    if (a < 0.1) return false; // 거의 투명 → 무시
-    const hsl = rgbToHsl(r, g, b);
-    const effectiveL = hsl[2] * a + 0.5 * (1 - a);
-    return effectiveL > 0.45;
+    return rgbToHsl(...parts.slice(0,3))[2] > 0.45;
   }
   return false;
 }
-
-// 어두운 색 판별 (알파 포함)
 function isDarkColor(color) {
   if (!color) return false;
   if (color.startsWith("rgb")) {
     const parts = color.match(/[\d.]+/g).map(Number);
-    let [r, g, b, a] = parts;
-    if (a === undefined) a = 1;
-    if (a < 0.1) return false;
-    const hsl = rgbToHsl(r, g, b);
-    const effectiveL = hsl[2] * a + 0.5 * (1 - a);
-    return effectiveL < 0.45;
+    return rgbToHsl(...parts.slice(0,3))[2] < 0.45;
   }
   return false;
 }
-
-// RGB→HSL 변환
-function rgbToHsl(r, g, b) {
-  r /= 255; g /= 255; b /= 255;
-  const max = Math.max(r, g, b), min = Math.min(r, g, b);
-  let h, s, l = (max + min) / 2;
-  if (max === min) { h = s = 0; }
-  else {
-    const d = max - min;
-    s = l > 0.5 ? d / (2 - max - min) : d / (max + min);
-    switch (max) {
-      case r: h = (g - b) / d + (g < b ? 6 : 0); break;
-      case g: h = (b - r) / d + 2; break;
-      case b: h = (r - g) / d + 4; break;
-    }
-    h /= 6;
+function rgbToHsl(r,g,b) {
+  r/=255; g/=255; b/=255;
+  const max=Math.max(r,g,b), min=Math.min(r,g,b);
+  let h,s,l=(max+min)/2;
+  if(max===min){h=s=0;}
+  else{
+    const d=max-min;
+    s=l>0.5?d/(2-max-min):d/(max+min);
+    switch(max){case r:h=(g-b)/d+(g<b?6:0);break;case g:h=(b-r)/d+2;break;case b:h=(r-g)/d+4;break;}
+    h/=6;
   }
-  return [h, s, l];
+  return [h,s,l];
 }
 
-// 자동 적용
-chrome.storage.local.get(['darkModeEnabled'], (result) => {
+// ==================================================
+// DOM 변경 감시
+// ==================================================
+function observeDomChanges(mode) {
+  const observer = new MutationObserver(mutations => {
+    mutations.forEach(m => {
+      m.addedNodes.forEach(node => {
+        if (node.nodeType !== 1) return;
+        if (mode === "fast") applyDarkModeToElements(node.parentElement);
+        else if (mode === "slow") applyThrottleDarkModeToElements(node.parentElement);
+        else if (mode === "direct") applyDirectDarkModeToElements(node.parentElement);
+        else if (mode === "ultra") applyUltraDarkModeToElements(node.parentElement);
+      });
+    });
+  });
+  observer.observe(document.body, { childList:true, subtree:true, attributes:true, attributeFilter:["class"] });
+}
+
+// ==================================================
+// 자동 적용 (이전 상태 유지)
+// ==================================================
+chrome.storage.local.get(['darkModeEnabled','darkModePerformance','darkModeDirect','darkModeUltra'], (result) => {
   if (result.darkModeEnabled) applyDarkMode();
+  if (result.darkModePerformance) applyPerformanceDarkMode();
+  if (result.darkModeDirect) applyDirectDarkMode();
+  if (result.darkModeUltra) applyUltraDarkMode();
 });
 

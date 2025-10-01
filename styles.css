@@ -24,6 +24,11 @@ h1 {
   color: #555;
 }
 
+.popup-btns button:disabled {
+  background-color: #cccccc;
+  cursor: not-allowed;
+}
+
 /* Button style */
 button {
   width: 100%;
@@ -56,3 +61,4 @@ button:hover {
 #status.error {
   color: #dc3545; /* Red for error */
 }
+
