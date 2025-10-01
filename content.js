@@ -1,4 +1,4 @@
-// popup.js로부터 메시지를 수신하는 리스너
+// popup.js 메시지 수신
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   if (message.action === 'applyDarkMode') {
     applyDarkMode();
@@ -9,322 +9,243 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   }
 });
 
-// 다크 모드를 적용하는 함수
-function applyDarkMode() {
-  // 다크 모드 스타일을 담을 <style> 요소 생성
-  const style = document.createElement('style');
-  style.id = 'dark-mode-styles';
+let timeout = null;
+
+// 다크모드 스타일 주입
+function injectDarkModeStyle() {
+  if (document.getElementById("dark-mode-styles")) return;
+
+  const style = document.createElement("style");
+  style.id = "dark-mode-styles";
   style.textContent = `
-    body {
+    body.gloomy-dark-body {
       background-color: #121212 !important;
       color: #e0e0e0 !important;
     }
-    * {
-      &::before, &::after {
-        color: inherit!important;
-        background-color: inherit!important;
-        border-color: inherit!important;
-      }
+
+    .gloomy-dark-article {
+      background-color: #232323 !important;
+      color: #e0e0e0 !important;
     }
-    /* Add more styles as needed */
+
+    .gloomy-dark-input, .gloomy-dark-label {
+      background-color: #232323 !important;
+      color: #e0e0e0 !important;
+    }
+
+    .gloomy-dark-button, .gloomy-dark-link {
+      background-color: #555 !important;
+      color: #5288ff !important;
+    }
+
+    .gloomy-dark-default {
+      background-color: #222 !important;
+      color: #e0e0e0 !important;
+    }
+
+    .gloomy-dark-border {
+      border-color: #e0e0e0 !important;
+    }
+
+    .gloomy-dark-svg {
+      fill: #999 !important;
+      stroke: #999 !important;
+    }
+
+    /* 🔹 모든 요소의 before/after 강제 다크모드 적용 */
+    *::before, *::after {
+      background-color: inherit !important;
+      color: inherit !important;
+      border-color: inherit !important;
+    }
   `;
   document.head.appendChild(style);
+}
 
-  // 모든 요소에 다크 모드 적용
+// 다크 모드 적용
+function applyDarkMode() {
+  injectDarkModeStyle();
+
   applyDarkModeToElements(document);
-
-  // iframe과 shadow root 내 요소에 다크 모드 적용
   handleIframesAndShadows(document);
 
-  // 500ms 후에 다이나믹하게 로드된 콘텐츠에 다시 다크 모드 적용
-  clearTimeout(timeout)
+  clearTimeout(timeout);
   timeout = setTimeout(() => {
     applyDarkModeToElements(document);
     handleIframesAndShadows(document);
   }, 500);
 
-  // DOM 변경 감시
   observeDomChanges();
 }
 
-
-let timeout = null;
-
-// DOM 변경을 감시하고 새로 추가된 요소에 다크 모드를 적용하는 함수
+// DOM 변경 감시
+// DOM 변경 감시 (노드 추가 + 속성 변경까지 감시)
 function observeDomChanges() {
-  const observer = new MutationObserver((mutations) => {
-    mutations.forEach((mutation) => {
-      if (mutation.addedNodes.length) {
-        mutation.addedNodes.forEach((node) => {
-          if (node.nodeType === 1) { // Element node
+  const observer = new MutationObserver(mutations => {
+    mutations.forEach(mutation => {
+      if (mutation.type === "childList" && mutation.addedNodes.length) {
+        mutation.addedNodes.forEach(node => {
+          if (node.nodeType === 1) {
             applyDarkModeToElements(node.parentElement);
             handleIframesAndShadows(node);
-            // 500ms 후에 다이나믹하게 로드된 콘텐츠에 다시 다크 모드 적용
-            // clearTimeout(timeout)
-            // timeout = setTimeout(() => {
-            //   applyDarkModeToElementsWithoutConfirmation(node);
-            //   handleIframesAndShadows(node);
-            // }, 500);
           }
         });
+      }
+
+      // 🔹 class 속성이 변경된 경우
+      if (mutation.type === "attributes" && mutation.attributeName === "class") {
+        const el = mutation.target;
+        // 다시 dark mode class 적용
+        applyDarkModeToElements(el);
       }
     });
   });
 
-  observer.observe(document.body, { childList: true, subtree: true });
+  observer.observe(document.body, { 
+    childList: true, 
+    subtree: true, 
+    attributes: true,     // 속성 변경 감시
+    attributeFilter: ["class"] // class 변경만 감시
+  });
 }
 
-// 모든 요소에 다크 모드를 적용하는 함수
+// 모든 요소 다크모드 처리
 function applyDarkModeToElements(root) {
+  if (!root) return;
   requestAnimationFrame(() => {
     const elements = root.querySelectorAll('*');
     elements.forEach(element => {
       const computedStyle = getComputedStyle(element);
       const bgColor = computedStyle.backgroundColor;
-      const bgImage = computedStyle.backgroundImage;
       const textColor = computedStyle.color;
 
-      const borderTopColor = computedStyle.borderTopColor;
-      const borderRightColor = computedStyle.borderRightColor;
-      const borderBottomColor = computedStyle.borderBottomColor;
-      const borderLeftColor = computedStyle.borderLeftColor;
-
-      if (bgImage.startsWith('linear-gradient')) {
-        const gradientBrightness = parseGradient(bgImage);
-        if (gradientBrightness > 0.45) {
-          element.style.setProperty('background-color', '#333', 'important');
-          element.style.setProperty('background-image', 'linear-gradient(#333, #333)', 'important');
-        }
-      } else if (isLightColor(bgColor)) {
-        element.style.setProperty('background-color', '#333', 'important');
-        element.style.setProperty('color', '#e0e0e0', 'important');
-
-        if (element.tagName === 'A' || element.tagName === 'BUTTON') {
-          element.style.setProperty('color', '#5288ff', 'important');
-          element.style.setProperty('background-color', '#555', 'important');
-        } else if (element.tagName === 'BODY') {
-          element.style.setProperty('color', '#e0e0e0', 'important');
-          element.style.setProperty('background-color', '#121212', 'important');
+      // 배경이 밝고 투명도가 낮지 않으면 class 추가
+      if (isLightColor(bgColor)) {
+        if (element.tagName === 'BODY') {
+          element.classList.add("gloomy-dark-body");
         } else if (element.tagName === 'ARTICLE') {
-          element.style.setProperty('color', '#e0e0e0', 'important');
-          element.style.setProperty('background-color', '#232323', 'important');
+          element.classList.add("gloomy-dark-article");
         } else if (element.tagName === 'INPUT' || element.tagName === 'LABEL') {
-          element.style.setProperty('color', '#e0e0e0', 'important');
-          element.style.setProperty('background-color', '#232323', 'important');
+          element.classList.add("gloomy-dark-input");
+        } else if (element.tagName === 'A') {
+          element.classList.add("gloomy-dark-link");
+        } else if (element.tagName === 'BUTTON') {
+          element.classList.add("gloomy-dark-button");
         } else {
-          element.style.setProperty('color', '#e0e0e0', 'important');
-          element.style.setProperty('background-color', '#222', 'important');
+          element.classList.add("gloomy-dark-default");
         }
       }
 
+      // 텍스트 색이 어두우면 글자색 class
       if (isDarkColor(textColor)) {
-        element.style.setProperty('color', '#e0e0e0', 'important');
         if (element.tagName === 'A') {
-          element.style.setProperty('color', '#5288ff', 'important');
+          element.classList.add("gloomy-dark-link");
+        } else {
+          element.classList.add("gloomy-dark-default");
         }
       }
-      if (isDarkColor(borderTopColor)) {
-        element.style.setProperty('border-top-color', '#e0e0e0', 'important');
-      }
-      if (isDarkColor(borderRightColor)) {
-        element.style.setProperty('border-right-color', '#e0e0e0', 'important');
-      }
-      if (isDarkColor(borderBottomColor)) {
-        element.style.setProperty('border-bottom-color', '#e0e0e0', 'important');
-      }
-      if (isDarkColor(borderLeftColor)) {
-        element.style.setProperty('border-left-color', '#e0e0e0', 'important');
+
+      // 보더 처리
+      const borders = [
+        computedStyle.borderTopColor,
+        computedStyle.borderRightColor,
+        computedStyle.borderBottomColor,
+        computedStyle.borderLeftColor
+      ];
+      if (borders.some(c => isDarkColor(c))) {
+        element.classList.add("gloomy-dark-border");
       }
 
-      // svg 변경
-      if (element.tagName === 'svg' || 
-          element.tagName === 'path' || 
-          element.tagName === 'circle' || 
-          element.tagName === 'ellipse' || 
-          element.tagName === 'rect' || 
-          element.tagName === 'line' || 
-          element.tagName === 'polygon' || 
-          element.tagName === 'polyline') {
-        handleSvgElements(element);
+      // svg
+      if (["svg","path","circle","ellipse","rect","line","polygon","polyline"].includes(element.tagName.toLowerCase())) {
+        element.classList.add("gloomy-dark-svg");
       }
     });
   });
 }
 
-// SVG 요소를 다루는 함수
-function handleSvgElements(element) {
-  if (element.hasAttribute('fill')) {
-    element.setAttribute('fill', '#999', 'important');
-  }
-
-  if (element.hasAttribute('stroke')) {
-    element.setAttribute('stroke', '#999', 'important');
-  }
-}
-
 // 다크모드 제거
 function removeDarkMode() {
-  const style = document.getElementById('dark-mode-styles');
-  if (style) {
-    style.remove();
-  }
+  const style = document.getElementById("dark-mode-styles");
+  if (style) style.remove();
 
-  resetColors(document);
-
-  // iframe 다크모드 제거
-  handleIframesAndShadows(document, true);
-}
-
-// 기본 모드로 리셋
-function resetColors(root) {
-  const elements = root.querySelectorAll('*');
-  elements.forEach(element => {
-    element.style.removeProperty('background-color');
-    element.style.removeProperty('color');
-    element.style.removeProperty('border-top-color');
-    element.style.removeProperty('border-right-color');
-    element.style.removeProperty('border-bottom-color');
-    element.style.removeProperty('border-left-color');
-
-    if (element.tagName === 'svg' || 
-      element.tagName === 'path' || 
-      element.tagName === 'circle' || 
-      element.tagName === 'ellipse' || 
-      element.tagName === 'rect' || 
-      element.tagName === 'line' || 
-      element.tagName === 'polygon' || 
-      element.tagName === 'polyline') {
-      if (element.getAttribute('fill') !== null) {
-        element.setAttribute('fill', '#000');
-      }
-      if (element.getAttribute('stroke') !== null) {
-        element.setAttribute('stroke', '#000');
-      }
-    }
+  const all = document.querySelectorAll("[class*='gloomy-dark-']");
+  all.forEach(el => {
+    el.classList.remove(
+      "gloomy-dark-body","gloomy-dark-article","gloomy-dark-input",
+      "gloomy-dark-label","gloomy-dark-button","gloomy-dark-link",
+      "gloomy-dark-default","gloomy-dark-border","gloomy-dark-svg"
+    );
   });
 }
 
-// iframe 및 shadow root를 처리하는 함수
+// iframe / shadow 처리
 function handleIframesAndShadows(root, remove = false) {
-  // iframe 처리
   const iframes = root.querySelectorAll('iframe');
   iframes.forEach(iframe => {
     try {
       const iframeDoc = iframe.contentDocument || iframe.contentWindow.document;
       if (iframeDoc) {
         requestAnimationFrame(() => {
-          if (remove) {
-            resetColors(iframeDoc);
-          } else {
-            applyDarkModeToElements(iframeDoc);
-          }
+          if (remove) removeDarkMode();
+          else applyDarkModeToElements(iframeDoc);
           handleIframesAndShadows(iframeDoc, remove);
         });
       }
     } catch (e) {
-      console.error('Cross-Origin 에러로 인해 iframe 접근 불가:', e);
+      console.warn("Cross-Origin iframe 접근 불가:", e);
     }
   });
 
-  // shadow root 처리
   const elements = root.querySelectorAll('*');
   elements.forEach(element => {
     if (element.shadowRoot) {
       requestAnimationFrame(() => {
-        if (remove) {
-          resetColors(element.shadowRoot);
-        } else {
-          applyDarkModeToElements(element.shadowRoot);
-        }
+        if (remove) removeDarkMode();
+        else applyDarkModeToElements(element.shadowRoot);
         handleIframesAndShadows(element.shadowRoot, remove);
       });
     }
   });
 }
 
-// 색상이 밝은지 확인하는 함수
+// 밝은 색 판별 (알파 포함)
 function isLightColor(color) {
   if (!color) return false;
-
-  if (color.startsWith('#')) {
-    const rgb = hexToRgb(color);
-    const hsl = rgbToHsl(...rgb);
-    return hsl[2] > 0.45; // 밝은 색상 여부를 lightness > 45%로 판별
-  } else if (color.startsWith('rgb')) {
-    const rgb = color.match(/\d+/g).map(Number);
-    const hsl = rgbToHsl(...rgb);
-    return hsl[2] > 0.45;
+  if (color.startsWith("rgb")) {
+    const parts = color.match(/[\d.]+/g).map(Number);
+    let [r, g, b, a] = parts;
+    if (a === undefined) a = 1;
+    if (a < 0.1) return false; // 거의 투명 → 무시
+    const hsl = rgbToHsl(r, g, b);
+    const effectiveL = hsl[2] * a + 0.5 * (1 - a);
+    return effectiveL > 0.45;
   }
-
   return false;
 }
 
-// 색상이 어두운지 확인하는 함수
+// 어두운 색 판별 (알파 포함)
 function isDarkColor(color) {
   if (!color) return false;
-
-  if (color.startsWith('#')) {
-    const rgb = hexToRgb(color);
-    const hsl = rgbToHsl(...rgb);
-    return hsl[2] < 0.45; // 어두운 색상 여부를 lightness < 60%로 판별
-  } else if (color.startsWith('rgb')) {
-    const rgb = color.match(/\d+/g).map(Number);
-    const hsl = rgbToHsl(...rgb);
-    return hsl[2] < 0.45;
+  if (color.startsWith("rgb")) {
+    const parts = color.match(/[\d.]+/g).map(Number);
+    let [r, g, b, a] = parts;
+    if (a === undefined) a = 1;
+    if (a < 0.1) return false;
+    const hsl = rgbToHsl(r, g, b);
+    const effectiveL = hsl[2] * a + 0.5 * (1 - a);
+    return effectiveL < 0.45;
   }
-
   return false;
 }
 
-// 그라디언트의 밝기를 계산하는 함수
-function parseGradient(gradient) {
-  // 그라디언트에서 색상을 추출하는 정규식
-  const colorRegex = /rgba?\(([^)]+)\)|#[0-9a-fA-F]{3,6}/g;
-  let matches = gradient.match(colorRegex);
-  
-  if (!matches) return null;
-
-  // 각 색상의 밝기를 계산
-  let totalLightness = 0;
-  matches.forEach(color => {
-    let rgb;
-    if (color.startsWith('rgb')) {
-      rgb = color.match(/\d+/g).map(Number);
-    } else {
-      rgb = hexToRgb(color);
-    }
-    let hsl = rgbToHsl(...rgb);
-    totalLightness += hsl[2]; // 밝기 값
-  });
-
-  // 평균 밝기를 반환
-  return totalLightness / matches.length;
-}
-
-// 16진수 색상을 RGB로 변환하는 함수
-function hexToRgb(hex) {
-  hex = hex.replace('#', '');
-  if (hex.length === 3) {
-    hex = hex.split('').map(x => x + x).join('');
-  }
-  const bigint = parseInt(hex, 16);
-  return [(bigint >> 16) & 255, (bigint >> 8) & 255, bigint & 255];
-}
-
-// RGB를 HSL로 변환하는 함수
+// RGB→HSL 변환
 function rgbToHsl(r, g, b) {
-  r /= 255;
-  g /= 255;
-  b /= 255;
-  
-  const max = Math.max(r, g, b);
-  const min = Math.min(r, g, b);
-  const l = (max + min) / 2;
-  let h, s;
-  
-  if (max === min) {
-    h = s = 0; // 무채색
-  } else {
+  r /= 255; g /= 255; b /= 255;
+  const max = Math.max(r, g, b), min = Math.min(r, g, b);
+  let h, s, l = (max + min) / 2;
+  if (max === min) { h = s = 0; }
+  else {
     const d = max - min;
     s = l > 0.5 ? d / (2 - max - min) : d / (max + min);
     switch (max) {
@@ -334,17 +255,11 @@ function rgbToHsl(r, g, b) {
     }
     h /= 6;
   }
-  
   return [h, s, l];
 }
 
-// 저장된 선호도에 따라 페이지 로드 시 다크 모드 자동 적용
+// 자동 적용
 chrome.storage.local.get(['darkModeEnabled'], (result) => {
-  const darkModeEnabled = result.darkModeEnabled || false;
-  if (darkModeEnabled) {
-    applyDarkMode();
-  } 
-  // else {
-  //   removeDarkMode();
-  // }
+  if (result.darkModeEnabled) applyDarkMode();
 });
+
