@@ -2,22 +2,38 @@
 <html>
 <head>
   <meta charset="UTF-8">
-  <title>Dark Mode Applier</title>
+  <title>Dark Theme Force Maker</title>
   <link rel="stylesheet" href="styles.css">
 </head>
 <body>
   <div id="popup-container">
-    <h1>Dark Mode Applier</h1>
-    <div class="popup-btns">
-      <button id="apply-dark-mode1">Toggle Dark Mode</button>
-      <button id="apply-dark-mode2">Toggle Dark Mode <br/>(slow, performance)</button>
-      <button id="apply-dark-mode3">Toggle Dark Mode <br/>(direct style)</button>
-      <button id="apply-dark-mode4">Toggle Ultra Mode</button>
-    </div>
-    <p id="status"></p>
+    <h1>Dark Theme Force Maker</h1>
     <p id="current-domain"></p>
+
+    <div class="popup-btns">
+      <button id="btn-normal">Enable Normal Mode</button>
+      <button id="btn-ultra">Enable Ultra Mode</button>
+    </div>
+
+    <div class="section">
+      <label class="toggle-row">
+        <input type="checkbox" id="chk-global">
+        <span>Apply to all sites</span>
+      </label>
+    </div>
+
+    <div class="section">
+      <h2>Exclude List</h2>
+      <div id="exclude-list"></div>
+      <div class="exclude-input-row">
+        <input type="text" id="exclude-input" placeholder="e.g. youtube.com">
+        <button id="btn-add-exclude">Add</button>
+      </div>
+      <button id="btn-exclude-current" class="btn-secondary">Exclude current site</button>
+    </div>
+
+    <p id="status"></p>
   </div>
   <script src="popup.js"></script>
 </body>
 </html>
-

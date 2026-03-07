@@ -1,20 +1,22 @@
-// 색상 매핑용 Map
-const colorClassMap = new Map();  // 클래스 기반 모드 (fast/slow/ultra)
-const colorStyleMap = new Map();  // 스타일 직접 조작 모드 (direct/ultra)
+// ==================================================
+// Dark Theme Force Maker - Content Script
+// Modes: Normal (direct style) / Ultra (class + style)
+// ==================================================
 
-// popup.js 메시지 수신
+const colorStyleMap = new Map();
+const colorClassMap = new Map();
+let timeout = null;
+let activeObserver = null;
+
+// 메시지 수신
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
-  if (message.action === 'applyDarkMode') {
-    applyDarkMode();
+  if (message.action === 'applyNormalMode') {
+    removeDarkMode();
+    applyNormalMode();
     sendResponse({ success: true });
-  } else if (message.action === 'applyDarkModePerformance') {
-    applyPerformanceDarkMode();
-    sendResponse({ success: true });
-  } else if (message.action === 'applyDarkModeDirect') {
-    applyDirectDarkMode();
-    sendResponse({ success: true });
-  } else if (message.action === 'applyDarkModeUltra') {
-    applyUltraDarkMode();
+  } else if (message.action === 'applyUltraMode') {
+    removeDarkMode();
+    applyUltraMode();
     sendResponse({ success: true });
   } else if (message.action === 'removeDarkMode') {
     removeDarkMode();
@@ -22,336 +24,287 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   }
 });
 
-let timeout = null;
+// ==================================================
+// Normal Mode (inline style)
+// ==================================================
+function applyNormalMode() {
+  injectBaseStyle();
+  applyNormalToElements(document);
+  handleIframesAndShadows(document, 'normal');
+  clearTimeout(timeout);
+  timeout = setTimeout(() => {
+    applyNormalToElements(document);
+    handleIframesAndShadows(document, 'normal');
+  }, 500);
+  observeDomChanges('normal');
+}
+
+function applyNormalToElements(root) {
+  if (!root) return;
+  requestAnimationFrame(() => {
+    const els = root.querySelectorAll('*');
+    for (let i = 0; i < els.length; i++) {
+      const el = els[i];
+      const cs = getComputedStyle(el);
+      if (isLightColor(cs.backgroundColor)) {
+        el.style.setProperty('background-color', '#222', 'important');
+        el.style.setProperty('color', '#e0e0e0', 'important');
+      }
+      if (isDarkColor(cs.color)) {
+        el.style.setProperty('color', '#e0e0e0', 'important');
+      }
+      if (isLightColor(cs.borderColor)) {
+        el.style.setProperty('border-color', '#555', 'important');
+      }
+    }
+  });
+}
 
 // ==================================================
-// 1. 스타일 시트 삽입
+// Ultra Mode (class + inline style)
+// ==================================================
+function applyUltraMode() {
+  injectDarkModeStyle();
+  applyUltraToElements(document);
+  handleIframesAndShadows(document, 'ultra');
+  clearTimeout(timeout);
+  timeout = setTimeout(() => {
+    applyUltraToElements(document);
+    handleIframesAndShadows(document, 'ultra');
+  }, 500);
+  observeDomChanges('ultra');
+}
+
+function applyUltraToElements(root) {
+  if (!root) return;
+  const els = root.querySelectorAll('*');
+  for (let i = 0; i < els.length; i++) {
+    const el = els[i];
+    const cs = getComputedStyle(el);
+    if (isLightColor(cs.backgroundColor)) {
+      const tag = el.tagName.toLowerCase();
+      el.classList.add(getOrAssignClass(tag, cs.backgroundColor));
+      el.style.setProperty('background-color', '#222', 'important');
+      el.style.setProperty('color', '#e0e0e0', 'important');
+    }
+    if (isDarkColor(cs.color)) {
+      const tag = el.tagName.toLowerCase();
+      el.classList.add(getOrAssignClass(tag, cs.color));
+      el.style.setProperty('color', '#e0e0e0', 'important');
+    }
+    if (isLightColor(cs.borderColor)) {
+      el.classList.add('gloomy-dark-border');
+      el.style.setProperty('border-color', '#555', 'important');
+    }
+  }
+}
+
+// ==================================================
+// Base style (Normal mode)
+// ==================================================
+function injectBaseStyle() {
+  if (document.getElementById('dark-mode-styles')) return;
+  const style = document.createElement('style');
+  style.id = 'dark-mode-styles';
+  style.textContent = `
+    html, body { background-color: #121212 !important; color: #e0e0e0 !important; }
+    img, video, canvas, svg { filter: brightness(0.9); }
+    a:visited { color: #c080ff !important; }
+  `;
+  document.head.appendChild(style);
+}
+
+// ==================================================
+// Full style sheet (Ultra mode)
 // ==================================================
 function injectDarkModeStyle() {
-  if (document.getElementById("dark-mode-styles")) return;
+  if (document.getElementById('dark-mode-styles')) return;
 
   const purples = [
-    "#0f0e0f","#1a171a","#242024","#2e292e","#383238",
-    "#423b42","#4c444c","#564d56","#605660","#6a5f6a"
+    '#0f0e0f','#1a171a','#242024','#2e292e','#383238',
+    '#423b42','#4c444c','#564d56','#605660','#6a5f6a'
   ];
-  const tags = ["html","body","div","span","section","article","button","a","label","input","pre","code",
-    "table","tr","td","th","ul","li","nav","header","footer","main","aside","form","textarea","select","option",
-    "img","p","h1","h2","h3","h4","h5","h6"];
+  const tags = [
+    'html','body','div','span','section','article','button','a','label','input','pre','code',
+    'table','tr','td','th','ul','li','nav','header','footer','main','aside','form','textarea',
+    'select','option','img','p','h1','h2','h3','h4','h5','h6'
+  ];
 
   let css = `
-    .gloomy-dark-border { border-color:#e0e0e0!important; }
-    .gloomy-dark-svg { fill:#aaa!important; stroke:#aaa!important; }
-    *::before,*::after{background-color:inherit!important;color:inherit!important;border-color:inherit!important;}
-    a:hover,button:hover,input:hover,select:hover,textarea:hover { background-color:#2e2b2e!important;color:#f0f0f0!important;border-color:#7a6a8a!important;}
-    a:active,button:active,input:active,select:active,textarea:active { background-color:#1d1a1d!important;color:#fff!important;border-color:#a080c0!important;}
-    a:focus,button:focus,input:focus,select:focus,textarea:focus,
-    a:focus-visible,button:focus-visible,input:focus-visible,select:focus-visible,textarea:focus-visible {
-      outline:2px solid #b38aff!important;outline-offset:2px!important;background-color:#242024!important;color:#fff!important;}
-    button:disabled,input:disabled,select:disabled,textarea:disabled {background-color:#3a3a3a!important;color:#888!important;border-color:#555!important;cursor:not-allowed!important;}
-    a:visited { color:#c080ff!important; }
+    html, body { background-color: #121212 !important; color: #e0e0e0 !important; }
+    .gloomy-dark-border { border-color: #555 !important; }
+    .gloomy-dark-svg { fill: #aaa !important; stroke: #aaa !important; }
+    img, video, canvas, svg { filter: brightness(0.9); }
+    *::before, *::after { background-color: inherit !important; color: inherit !important; border-color: inherit !important; }
+    a:hover, button:hover, input:hover, select:hover, textarea:hover {
+      background-color: #2e2b2e !important; color: #f0f0f0 !important; border-color: #7a6a8a !important; }
+    a:active, button:active, input:active, select:active, textarea:active {
+      background-color: #1d1a1d !important; color: #fff !important; border-color: #a080c0 !important; }
+    a:focus, button:focus, input:focus, select:focus, textarea:focus,
+    a:focus-visible, button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-visible {
+      outline: 2px solid #b38aff !important; outline-offset: 2px !important;
+      background-color: #242024 !important; color: #fff !important; }
+    button:disabled, input:disabled, select:disabled, textarea:disabled {
+      background-color: #3a3a3a !important; color: #888 !important; border-color: #555 !important; cursor: not-allowed !important; }
+    a:visited { color: #c080ff !important; }
   `;
 
-  tags.forEach(tag=>{
-    purples.forEach((color,i)=>{
-      css += `
-        .gloomy-dark-${tag}${i+1}{
-          background-color:${color}!important;
-          color:#e0e0e0!important;
-          border-color:#6a5a7a!important;
-        }
-      `;
+  tags.forEach(tag => {
+    purples.forEach((color, i) => {
+      css += `.gloomy-dark-${tag}${i + 1}{background-color:${color}!important;color:#e0e0e0!important;border-color:#6a5a7a!important;}\n`;
     });
   });
 
-  const style=document.createElement("style");
-  style.id="dark-mode-styles";
-  style.textContent=css;
+  const style = document.createElement('style');
+  style.id = 'dark-mode-styles';
+  style.textContent = css;
   document.head.appendChild(style);
 }
 
 // ==================================================
-// 2. 일반 모드
+// Remove
 // ==================================================
-let lastApplyTimeFast=0,applyScheduledFast=false;
-function applyDarkMode(){
-  injectDarkModeStyle();
-  applyDarkModeToElements(document);
-  handleIframesAndShadows(document);
-  clearTimeout(timeout);
-  timeout=setTimeout(()=>{
-    applyDarkModeToElements(document);
-    handleIframesAndShadows(document);
-  },500);
-  observeDomChanges("fast");
-}
-function applyDarkModeToElements(root){
-  if(!root)return;
-  const now=Date.now();
-  if(lastApplyTimeFast && now-lastApplyTimeFast<50){
-    if(!applyScheduledFast){
-      applyScheduledFast=true;
-      setTimeout(()=>{applyScheduledFast=false;applyDarkModeToElements(root);},50);
-    }
-    return;
+function removeDarkMode() {
+  if (activeObserver) {
+    activeObserver.disconnect();
+    activeObserver = null;
   }
-  lastApplyTimeFast=now;
-  const elements=root.querySelectorAll('*');
-  let index=0;
-  function batch(){
-    const end=Math.min(index+500,elements.length);
-    for(;index<end;index++)processElement(elements[index]);
-    if(index<elements.length)setTimeout(batch,10);
-  }
-  batch();
-}
-
-// ==================================================
-// 3. 성능 모드
-// ==================================================
-let lastApplyTime=0,applyScheduled=false;
-function applyPerformanceDarkMode(){
-  injectDarkModeStyle();
-  applyThrottleDarkModeToElements(document);
-  handleIframesAndShadows(document);
   clearTimeout(timeout);
-  timeout=setTimeout(()=>{
-    applyThrottleDarkModeToElements(document);
-    handleIframesAndShadows(document);
-  },500);
-  observeDomChanges("slow");
-}
-function applyThrottleDarkModeToElements(root){
-  if(!root)return;
-  const now=Date.now();
-  if(lastApplyTime && now-lastApplyTime<500){
-    if(!applyScheduled){
-      applyScheduled=true;
-      setTimeout(()=>{applyScheduled=false;applyThrottleDarkModeToElements(root);},500);
-    }
-    return;
-  }
-  lastApplyTime=now;
-  const elements=root.querySelectorAll('*');
-  let index=0;
-  function batch(){
-    const end=Math.min(index+50,elements.length);
-    for(;index<end;index++)processElement(elements[index]);
-    if(index<elements.length)setTimeout(batch,200);
-  }
-  batch();
-}
 
-// ==================================================
-// 4. 직접 스타일 모드
-// ==================================================
-function applyDirectDarkMode(){
-  const style=document.createElement('style');
-  style.id='dark-mode-styles';
-  style.textContent=`body{background-color:#121212!important;color:#e0e0e0!important;}`;
-  document.head.appendChild(style);
+  const style = document.getElementById('dark-mode-styles');
+  if (style) style.remove();
 
-  applyDirectDarkModeToElements(document);
-  handleIframesAndShadows(document);
-  clearTimeout(timeout);
-  timeout=setTimeout(()=>{
-    applyDirectDarkModeToElements(document);
-    handleIframesAndShadows(document);
-  },500);
-  observeDomChanges("direct");
-}
-function applyDirectDarkModeToElements(root){
-  if(!root)return;
-  requestAnimationFrame(()=>{
-    root.querySelectorAll('*').forEach(el=>{
-      const cs=getComputedStyle(el);
-      if(isLightColor(cs.backgroundColor)){
-        const bg=getOrAssignStyle(cs.backgroundColor,"bg");
-        el.style.setProperty("background-color",bg);
-        el.style.setProperty("color","#e0e0e0");
-      }
-      if(isDarkColor(cs.color)){
-        const fg=getOrAssignStyle(cs.color,"fg");
-        el.style.setProperty("color",fg);
-      }
-    });
-  });
-}
-
-// ==================================================
-// 5. 울트라 모드 (class+style 동시)
-// ==================================================
-function applyUltraDarkMode(){
-  injectDarkModeStyle();
-  applyUltraDarkModeToElements(document);
-  handleIframesAndShadows(document);
-  clearTimeout(timeout);
-  timeout=setTimeout(()=>{
-    applyUltraDarkModeToElements(document);
-    handleIframesAndShadows(document);
-  },500);
-  observeDomChanges("ultra");
-}
-function applyUltraDarkModeToElements(root){
-  if(!root)return;
-  root.querySelectorAll('*').forEach(el=>{
-    const cs=getComputedStyle(el);
-    if(isLightColor(cs.backgroundColor)){
-      const tag=el.tagName.toLowerCase();
-      const cls=getOrAssignClass(tag,cs.backgroundColor);
-      el.classList.add(cls);
-      const bg=getOrAssignStyle(cs.backgroundColor,"bg");
-      el.style.setProperty("background-color",bg);
-      el.style.setProperty("color","#e0e0e0");
-    }
-    if(isDarkColor(cs.color)){
-      const tag=el.tagName.toLowerCase();
-      const cls=getOrAssignClass(tag,cs.color);
-      el.classList.add(cls);
-      const fg=getOrAssignStyle(cs.color,"fg");
-      el.style.setProperty("color",fg);
+  document.querySelectorAll("[class*='gloomy-dark-']").forEach(el => {
+    if (el.className && typeof el.className === 'string') {
+      el.className = el.className.split(' ').filter(c => !c.startsWith('gloomy-dark-')).join(' ');
     }
   });
-}
 
-// ==================================================
-// 공통 요소 처리 (fast/slow)
-// ==================================================
-function processElement(el){
-  const cs=getComputedStyle(el);
-  if(isLightColor(cs.backgroundColor)){
-    const tag=el.tagName.toLowerCase();
-    const cls=getOrAssignClass(tag,cs.backgroundColor);
-    el.classList.add(cls);
-  }
-  if(isDarkColor(cs.color)){
-    const tag=el.tagName.toLowerCase();
-    const cls=getOrAssignClass(tag,cs.color);
-    el.classList.add(cls);
-  }
-}
-
-// ==================================================
-// 색상 매핑 유틸
-// ==================================================
-function getOrAssignClass(tag,color){
-  if(colorClassMap.has(color)) return colorClassMap.get(color);
-  const randIdx=Math.floor(Math.random()*10)+1;
-  const cls=`gloomy-dark-${tag}${randIdx}`;
-  colorClassMap.set(color,cls);
-  return cls;
-}
-function getOrAssignStyle(color,type){
-  if(colorStyleMap.has(color)) return colorStyleMap.get(color);
-  let mapped;
-  if(type==="bg") mapped="#222"; // variation 가능: 밝기별 팔레트 배정
-  else mapped="#e0e0e0";
-  colorStyleMap.set(color,mapped);
-  return mapped;
-}
-
-// ==================================================
-// 제거
-// ==================================================
-function removeDarkMode(){
-  const style=document.getElementById("dark-mode-styles");
-  if(style) style.remove();
-  document.querySelectorAll("[class*='gloomy-dark-']").forEach(el=>{
-    if(el.className && typeof el.className==="string"){
-      el.className=el.className.split(" ").filter(c=>!c.startsWith("gloomy-dark-")).join(" ");
-    }
+  document.querySelectorAll('*').forEach(el => {
+    el.style.removeProperty('background-color');
+    el.style.removeProperty('color');
+    el.style.removeProperty('border-color');
   });
-  document.querySelectorAll('*').forEach(el=>{
-    el.style.removeProperty("background-color");
-    el.style.removeProperty("color");
-    el.style.removeProperty("border-color");
-  });
+
   colorClassMap.clear();
   colorStyleMap.clear();
 }
 
 // ==================================================
-// iframe / shadow
+// Class mapping (Ultra)
 // ==================================================
-function handleIframesAndShadows(root,remove=false){
-  root.querySelectorAll("iframe").forEach(iframe=>{
-    try{
-      const doc=iframe.contentDocument||iframe.contentWindow.document;
-      if(doc){
-        requestAnimationFrame(()=>{
-          if(remove) removeDarkMode(); else applyDarkModeToElements(doc);
-          handleIframesAndShadows(doc,remove);
+function getOrAssignClass(tag, color) {
+  if (colorClassMap.has(color)) return colorClassMap.get(color);
+  const idx = Math.floor(Math.random() * 10) + 1;
+  const cls = `gloomy-dark-${tag}${idx}`;
+  colorClassMap.set(color, cls);
+  return cls;
+}
+
+// ==================================================
+// iframe / Shadow DOM
+// ==================================================
+function handleIframesAndShadows(root, mode) {
+  root.querySelectorAll('iframe').forEach(iframe => {
+    try {
+      const doc = iframe.contentDocument || iframe.contentWindow.document;
+      if (doc) {
+        requestAnimationFrame(() => {
+          if (mode === 'normal') applyNormalToElements(doc);
+          else applyUltraToElements(doc);
+          handleIframesAndShadows(doc, mode);
         });
       }
-    }catch{}
+    } catch {}
   });
-  root.querySelectorAll('*').forEach(el=>{
-    if(el.shadowRoot){
-      requestAnimationFrame(()=>{
-        if(remove) removeDarkMode(); else applyDarkModeToElements(el.shadowRoot);
-        handleIframesAndShadows(el.shadowRoot,remove);
+  root.querySelectorAll('*').forEach(el => {
+    if (el.shadowRoot) {
+      requestAnimationFrame(() => {
+        if (mode === 'normal') applyNormalToElements(el.shadowRoot);
+        else applyUltraToElements(el.shadowRoot);
+        handleIframesAndShadows(el.shadowRoot, mode);
       });
     }
   });
 }
 
 // ==================================================
-// 색 판별
+// Color detection
 // ==================================================
-function isLightColor(color){
-  if(!color) return false;
-  if(color.startsWith("rgb")){
-    const parts=color.match(/[\d.]+/g).map(Number);
-    return rgbToHsl(...parts.slice(0,3))[2]>0.45;
+function isLightColor(color) {
+  if (!color || color === 'transparent' || color === 'rgba(0, 0, 0, 0)') return false;
+  if (color.startsWith('rgb')) {
+    const parts = color.match(/[\d.]+/g).map(Number);
+    if (parts.length >= 4 && parts[3] < 0.1) return false;
+    return rgbToHsl(parts[0], parts[1], parts[2])[2] > 0.45;
   }
   return false;
 }
-function isDarkColor(color){
-  if(!color) return false;
-  if(color.startsWith("rgb")){
-    const parts=color.match(/[\d.]+/g).map(Number);
-    return rgbToHsl(...parts.slice(0,3))[2]<0.45;
+
+function isDarkColor(color) {
+  if (!color || color === 'transparent' || color === 'rgba(0, 0, 0, 0)') return false;
+  if (color.startsWith('rgb')) {
+    const parts = color.match(/[\d.]+/g).map(Number);
+    if (parts.length >= 4 && parts[3] < 0.1) return false;
+    return rgbToHsl(parts[0], parts[1], parts[2])[2] < 0.45;
   }
   return false;
 }
-function rgbToHsl(r,g,b){
-  r/=255; g/=255; b/=255;
-  const max=Math.max(r,g,b),min=Math.min(r,g,b);
-  let h,s,l=(max+min)/2;
-  if(max===min){h=s=0;}
-  else{
-    const d=max-min;
-    s=l>0.5?d/(2-max-min):d/(max+min);
-    switch(max){case r:h=(g-b)/d+(g<b?6:0);break;case g:h=(b-r)/d+2;break;case b:h=(r-g)/d+4;break;}
-    h/=6;
+
+function rgbToHsl(r, g, b) {
+  r /= 255; g /= 255; b /= 255;
+  const max = Math.max(r, g, b), min = Math.min(r, g, b);
+  let h, s, l = (max + min) / 2;
+  if (max === min) { h = s = 0; }
+  else {
+    const d = max - min;
+    s = l > 0.5 ? d / (2 - max - min) : d / (max + min);
+    switch (max) {
+      case r: h = (g - b) / d + (g < b ? 6 : 0); break;
+      case g: h = (b - r) / d + 2; break;
+      case b: h = (r - g) / d + 4; break;
+    }
+    h /= 6;
   }
-  return [h,s,l];
+  return [h, s, l];
 }
 
 // ==================================================
-// DOM 변경 감시
+// DOM mutation observer
 // ==================================================
-function observeDomChanges(mode){
-  const observer=new MutationObserver(mutations=>{
-    mutations.forEach(m=>{
-      m.addedNodes.forEach(node=>{
-        if(node.nodeType!==1)return;
-        if(mode==="fast")applyDarkModeToElements(node.parentElement);
-        else if(mode==="slow")applyThrottleDarkModeToElements(node.parentElement);
-        else if(mode==="direct")applyDirectDarkModeToElements(node.parentElement);
-        else if(mode==="ultra")applyUltraDarkModeToElements(node.parentElement);
+function observeDomChanges(mode) {
+  if (activeObserver) activeObserver.disconnect();
+
+  activeObserver = new MutationObserver(mutations => {
+    mutations.forEach(m => {
+      m.addedNodes.forEach(node => {
+        if (node.nodeType !== 1) return;
+        if (mode === 'normal') applyNormalToElements(node.parentElement);
+        else applyUltraToElements(node.parentElement);
       });
     });
   });
-  observer.observe(document.body,{childList:true,subtree:true,attributes:true,attributeFilter:["class"]});
+  activeObserver.observe(document.body, { childList: true, subtree: true });
 }
 
 // ==================================================
-// 자동 적용
+// Auto-apply on page load
 // ==================================================
-chrome.storage.local.get(['darkModeEnabled','darkModePerformance','darkModeDirect','darkModeUltra'],(result)=>{
-  if(result.darkModeEnabled)applyDarkMode();
-  if(result.darkModePerformance)applyPerformanceDarkMode();
-  if(result.darkModeDirect)applyDirectDarkMode();
-  if(result.darkModeUltra)applyUltraDarkMode();
-});
+chrome.storage.local.get(['darkMode', 'globalMode', 'excludeList'], (result) => {
+  const mode = result.darkMode || 'off';
+  const global = result.globalMode || false;
+  const excludes = result.excludeList || [];
 
+  if (mode === 'off') return;
+
+  // Exclude list 체크
+  const domain = location.hostname;
+  const excluded = excludes.some(d => domain === d || domain.endsWith('.' + d));
+  if (excluded) return;
+
+  // Global 모드가 아니면 수동 토글만 동작
+  if (!global) return;
+
+  if (mode === 'normal') applyNormalMode();
+  else if (mode === 'ultra') applyUltraMode();
+});

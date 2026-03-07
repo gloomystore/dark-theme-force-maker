@@ -1,211 +1,186 @@
 document.addEventListener('DOMContentLoaded', () => {
-  const applyButton1 = document.getElementById('apply-dark-mode1'); // 일반 모드
-  const applyButton2 = document.getElementById('apply-dark-mode2'); // 성능 모드
-  const applyButton3 = document.getElementById('apply-dark-mode3'); // 직접 스타일 조작 모드
-  const applyButton4 = document.getElementById('apply-dark-mode4'); // 울트라 모드
+  const btnNormal = document.getElementById('btn-normal');
+  const btnUltra = document.getElementById('btn-ultra');
+  const chkGlobal = document.getElementById('chk-global');
   const status = document.getElementById('status');
-  const currentDomainElement = document.getElementById('current-domain');
+  const domainEl = document.getElementById('current-domain');
+  const excludeList = document.getElementById('exclude-list');
+  const excludeInput = document.getElementById('exclude-input');
+  const btnAddExclude = document.getElementById('btn-add-exclude');
+  const btnExcludeCurrent = document.getElementById('btn-exclude-current');
 
-  // 현재 도메인 표시
+  let currentDomain = '';
+
+  // 현재 도메인 가져오기
   chrome.runtime.sendMessage({ action: 'getCurrentDomain' }, (response) => {
     if (response && response.domain) {
-      currentDomainElement.textContent = `Current domain: ${response.domain}`;
+      currentDomain = response.domain;
+      domainEl.textContent = currentDomain;
     } else {
-      currentDomainElement.textContent = 'Could not retrieve domain.';
+      domainEl.textContent = 'Unknown';
     }
+    loadState();
   });
 
-  // 초기 상태 체크
-  chrome.storage.local.get(
-    ['darkModeEnabled', 'darkModePerformance', 'darkModeDirect', 'darkModeUltra'],
-    (result) => {
-      updateStatus(
-        result.darkModeEnabled || false,
-        result.darkModePerformance || false,
-        result.darkModeDirect || false,
-        result.darkModeUltra || false
-      );
+  function loadState() {
+    chrome.storage.local.get(['darkMode', 'globalMode', 'excludeList'], (result) => {
+      const mode = result.darkMode || 'off';
+      const global = result.globalMode || false;
+      const excludes = result.excludeList || [];
+
+      chkGlobal.checked = global;
+      renderExcludeList(excludes);
+      updateButtons(mode, global, excludes);
+    });
+  }
+
+  function isExcluded(excludes) {
+    return excludes.some(d => currentDomain === d || currentDomain.endsWith('.' + d));
+  }
+
+  function updateButtons(mode, global, excludes) {
+    const excluded = isExcluded(excludes);
+
+    if (excluded) {
+      btnNormal.textContent = 'Excluded';
+      btnUltra.textContent = 'Excluded';
+      btnNormal.disabled = true;
+      btnUltra.disabled = true;
+      btnNormal.classList.remove('active');
+      btnUltra.classList.remove('active');
+      status.textContent = 'This site is in the exclude list.';
+      return;
     }
-  );
 
-  // 일반 다크모드 버튼
-  applyButton1.addEventListener('click', () => {
-    chrome.storage.local.get(['darkModeEnabled'], (result) => {
-      const darkModeEnabled = result.darkModeEnabled || false;
-      const newDarkModeEnabled = !darkModeEnabled;
+    btnNormal.disabled = false;
+    btnUltra.disabled = false;
 
-      chrome.storage.local.set({
-        darkModeEnabled: newDarkModeEnabled,
-        darkModePerformance: false,
-        darkModeDirect: false,
-        darkModeUltra: false
-      }, () => {
-        chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
-          chrome.tabs.sendMessage(
-            tabs[0].id,
-            { action: newDarkModeEnabled ? 'applyDarkMode' : 'removeDarkMode' },
-            (response) => {
-              if (response && response.success) {
-                updateStatus(newDarkModeEnabled, false, false, false);
-              } else {
-                status.textContent = 'Failed to apply dark mode. Please refresh the page (F5).';
-              }
-            }
-          );
-        });
-      });
-    });
-  });
-
-  // 성능 모드 버튼
-  applyButton2.addEventListener('click', () => {
-    chrome.storage.local.get(['darkModePerformance'], (result) => {
-      const performanceEnabled = result.darkModePerformance || false;
-      const newPerformanceEnabled = !performanceEnabled;
-
-      chrome.storage.local.set({
-        darkModeEnabled: false,
-        darkModePerformance: newPerformanceEnabled,
-        darkModeDirect: false,
-        darkModeUltra: false
-      }, () => {
-        chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
-          chrome.tabs.sendMessage(
-            tabs[0].id,
-            { action: newPerformanceEnabled ? 'applyDarkModePerformance' : 'removeDarkMode' },
-            (response) => {
-              if (response && response.success) {
-                updateStatus(false, newPerformanceEnabled, false, false);
-              } else {
-                status.textContent = 'Failed to apply performance dark mode. Please refresh the page (F5).';
-              }
-            }
-          );
-        });
-      });
-    });
-  });
-
-  // 직접 스타일 조작 모드 버튼
-  applyButton3.addEventListener('click', () => {
-    chrome.storage.local.get(['darkModeDirect'], (result) => {
-      const directEnabled = result.darkModeDirect || false;
-      const newDirectEnabled = !directEnabled;
-
-      chrome.storage.local.set({
-        darkModeEnabled: false,
-        darkModePerformance: false,
-        darkModeDirect: newDirectEnabled,
-        darkModeUltra: false
-      }, () => {
-        chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
-          chrome.tabs.sendMessage(
-            tabs[0].id,
-            { action: newDirectEnabled ? 'applyDarkModeDirect' : 'removeDarkMode' },
-            (response) => {
-              if (response && response.success) {
-                updateStatus(false, false, newDirectEnabled, false);
-              } else {
-                status.textContent = 'Failed to apply direct style dark mode. Please refresh the page (F5).';
-              }
-            }
-          );
-        });
-      });
-    });
-  });
-
-  // 울트라 모드 버튼
-  applyButton4.addEventListener('click', () => {
-    chrome.storage.local.get(['darkModeUltra'], (result) => {
-      const ultraEnabled = result.darkModeUltra || false;
-      const newUltraEnabled = !ultraEnabled;
-
-      chrome.storage.local.set({
-        darkModeEnabled: false,
-        darkModePerformance: false,
-        darkModeDirect: false,
-        darkModeUltra: newUltraEnabled
-      }, () => {
-        chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
-          chrome.tabs.sendMessage(
-            tabs[0].id,
-            { action: newUltraEnabled ? 'applyDarkModeUltra' : 'removeDarkMode' },
-            (response) => {
-              if (response && response.success) {
-                updateStatus(false, false, false, newUltraEnabled);
-              } else {
-                status.textContent = 'Failed to apply ultra dark mode. Please refresh the page (F5).';
-              }
-            }
-          );
-        });
-      });
-    });
-  });
-
-  // 상태 갱신
-  function updateStatus(isDarkMode, isPerformanceMode, isDirectMode, isUltraMode) {
-    if (isUltraMode) {
-      status.textContent = 'Ultra Dark Mode is enabled.';
-      applyButton1.textContent = 'Enable Dark Mode';
-      applyButton2.textContent = 'Enable Performance Dark Mode';
-      applyButton3.textContent = 'Enable Direct Dark Mode';
-      applyButton4.textContent = 'Disable Ultra Dark Mode';
-
-      applyButton1.disabled = true;
-      applyButton2.disabled = true;
-      applyButton3.disabled = true;
-      applyButton4.disabled = false;
-
-    } else if (isDirectMode) {
-      status.textContent = 'Direct Style Dark Mode is enabled.';
-      applyButton1.textContent = 'Enable Dark Mode';
-      applyButton2.textContent = 'Enable Performance Dark Mode';
-      applyButton3.textContent = 'Disable Direct Dark Mode';
-      applyButton4.textContent = 'Enable Ultra Dark Mode';
-
-      applyButton1.disabled = true;
-      applyButton2.disabled = true;
-      applyButton3.disabled = false;
-      applyButton4.disabled = true;
-
-    } else if (isPerformanceMode) {
-      status.textContent = 'Performance Dark Mode is enabled.';
-      applyButton1.textContent = 'Enable Dark Mode';
-      applyButton2.textContent = 'Disable Performance Dark Mode';
-      applyButton3.textContent = 'Enable Direct Dark Mode';
-      applyButton4.textContent = 'Enable Ultra Dark Mode';
-
-      applyButton1.disabled = true;
-      applyButton2.disabled = false;
-      applyButton3.disabled = true;
-      applyButton4.disabled = true;
-
-    } else if (isDarkMode) {
-      status.textContent = 'Dark Mode is enabled.';
-      applyButton1.textContent = 'Disable Dark Mode';
-      applyButton2.textContent = 'Enable Performance Dark Mode';
-      applyButton3.textContent = 'Enable Direct Dark Mode';
-      applyButton4.textContent = 'Enable Ultra Dark Mode';
-
-      applyButton1.disabled = false;
-      applyButton2.disabled = true;
-      applyButton3.disabled = true;
-      applyButton4.disabled = true;
-
+    if (mode === 'normal') {
+      btnNormal.textContent = 'Disable Normal Mode';
+      btnNormal.classList.add('active');
+      btnUltra.textContent = 'Enable Ultra Mode';
+      btnUltra.classList.remove('active');
+      status.textContent = 'Normal Dark Mode enabled.';
+    } else if (mode === 'ultra') {
+      btnNormal.textContent = 'Enable Normal Mode';
+      btnNormal.classList.remove('active');
+      btnUltra.textContent = 'Disable Ultra Mode';
+      btnUltra.classList.add('active');
+      status.textContent = 'Ultra Dark Mode enabled.';
     } else {
-      status.textContent = 'Dark Mode is disabled.';
-      applyButton1.textContent = 'Enable Dark Mode';
-      applyButton2.textContent = 'Enable Performance Dark Mode';
-      applyButton3.textContent = 'Enable Direct Dark Mode';
-      applyButton4.textContent = 'Enable Ultra Dark Mode';
-
-      applyButton1.disabled = false;
-      applyButton2.disabled = false;
-      applyButton3.disabled = false;
-      applyButton4.disabled = false;
+      btnNormal.textContent = 'Enable Normal Mode';
+      btnNormal.classList.remove('active');
+      btnUltra.textContent = 'Enable Ultra Mode';
+      btnUltra.classList.remove('active');
+      status.textContent = 'Dark Mode is off.';
     }
   }
-});
 
+  function applyMode(mode) {
+    chrome.storage.local.set({ darkMode: mode }, () => {
+      chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
+        const action = mode === 'off' ? 'removeDarkMode'
+          : mode === 'normal' ? 'applyNormalMode'
+          : 'applyUltraMode';
+        chrome.tabs.sendMessage(tabs[0].id, { action }, () => {
+          loadState();
+        });
+      });
+    });
+  }
+
+  btnNormal.addEventListener('click', () => {
+    chrome.storage.local.get(['darkMode'], (result) => {
+      applyMode(result.darkMode === 'normal' ? 'off' : 'normal');
+    });
+  });
+
+  btnUltra.addEventListener('click', () => {
+    chrome.storage.local.get(['darkMode'], (result) => {
+      applyMode(result.darkMode === 'ultra' ? 'off' : 'ultra');
+    });
+  });
+
+  // Global 모드 토글
+  chkGlobal.addEventListener('change', () => {
+    chrome.storage.local.set({ globalMode: chkGlobal.checked }, () => {
+      status.textContent = chkGlobal.checked
+        ? 'Global mode ON — applies to all sites.'
+        : 'Global mode OFF — manual toggle per site.';
+    });
+  });
+
+  // Exclude List 렌더링
+  function renderExcludeList(excludes) {
+    excludeList.innerHTML = '';
+    excludes.forEach((domain, i) => {
+      const row = document.createElement('div');
+      row.className = 'exclude-item';
+
+      const span = document.createElement('span');
+      span.textContent = domain;
+
+      const btn = document.createElement('button');
+      btn.textContent = '\u00d7';
+      btn.title = 'Remove';
+      btn.addEventListener('click', () => removeExclude(i));
+
+      row.appendChild(span);
+      row.appendChild(btn);
+      excludeList.appendChild(row);
+    });
+  }
+
+  function addExclude(domain) {
+    domain = domain.trim().toLowerCase().replace(/^https?:\/\//, '').replace(/\/.*$/, '');
+    if (!domain) return;
+
+    chrome.storage.local.get(['excludeList'], (result) => {
+      const excludes = result.excludeList || [];
+      if (excludes.includes(domain)) {
+        status.textContent = 'Already in exclude list.';
+        return;
+      }
+      excludes.push(domain);
+      chrome.storage.local.set({ excludeList: excludes }, () => {
+        renderExcludeList(excludes);
+        status.textContent = `Added: ${domain}`;
+        // 제외된 사이트면 즉시 다크모드 해제
+        if (currentDomain === domain || currentDomain.endsWith('.' + domain)) {
+          chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
+            chrome.tabs.sendMessage(tabs[0].id, { action: 'removeDarkMode' });
+          });
+        }
+        loadState();
+      });
+    });
+  }
+
+  function removeExclude(index) {
+    chrome.storage.local.get(['excludeList'], (result) => {
+      const excludes = result.excludeList || [];
+      const removed = excludes.splice(index, 1)[0];
+      chrome.storage.local.set({ excludeList: excludes }, () => {
+        renderExcludeList(excludes);
+        status.textContent = `Removed: ${removed}`;
+        loadState();
+      });
+    });
+  }
+
+  btnAddExclude.addEventListener('click', () => {
+    addExclude(excludeInput.value);
+    excludeInput.value = '';
+  });
+
+  excludeInput.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') {
+      addExclude(excludeInput.value);
+      excludeInput.value = '';
+    }
+  });
+
+  btnExcludeCurrent.addEventListener('click', () => {
+    if (currentDomain) addExclude(currentDomain);
+  });
+});

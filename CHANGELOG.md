@@ -1,5 +1,23 @@
 ## Changelog
 
+### 2.0.0
+
+- **Major: Simplified to 2 modes** — Removed the old 4-mode system (fast/slow/direct/ultra). Now only **Normal Mode** and **Ultra Mode** remain.
+  - **Normal Mode**: Applies dark theme via direct inline style manipulation. Replaces the old "Direct Style" mode.
+  - **Ultra Mode**: Applies dark theme via CSS classes AND inline styles simultaneously for maximum coverage. Replaces the old "Ultra" mode.
+  - Removed: "Toggle Dark Mode" (class-only fast batch) and "Toggle Dark Mode slow/performance" (class-only throttled batch) as they were strictly weaker than the remaining modes.
+- **New: Global Mode** — "Apply to all sites" checkbox. When enabled, dark mode is automatically applied to every page you visit (respecting the exclude list).
+- **New: Exclude List** — Add domains that should be skipped by dark mode.
+  - Manual domain input with Add button.
+  - "Exclude current site" quick-add button.
+  - Remove domains with × button.
+  - Supports subdomain matching (e.g. adding `youtube.com` also excludes `www.youtube.com`).
+  - Adding a currently-viewed excluded domain immediately removes dark mode.
+- **UI redesign** — Dark-themed popup with cleaner layout, toggle buttons, and inline exclude list management.
+- **MutationObserver fix** — Previous version could stack multiple observers. Now properly disconnects before creating a new one.
+- **Transparent color handling** — Colors with alpha < 0.1 are now ignored to avoid misinterpreting transparent elements.
+- **Border color support in Normal mode** — Normal mode now also darkens light borders, matching Ultra mode behavior.
+
 ### 1.0.6
 
 - When handling colors in rgba(r, g, b, a), the alpha value (a) determines the opacity of the color:
@@ -10,7 +28,7 @@
 
       0 < a < 1 → partially transparent (the color blends with the background)
 
-  In the dark mode script, we don’t just check the brightness of rgb(r, g, b).
+  In the dark mode script, we don't just check the brightness of rgb(r, g, b).
   We also factor in the alpha value to avoid misinterpreting transparent whites or blacks.
 
 ### 1.0.5
@@ -21,21 +39,16 @@
 ### 1.0.4
 
 - **Enhanced Border Color Adaptation in Dark Mode**  
-  Improved the dark mode by including support for adapting border colors. This update ensures that borders, which were previously unaffected by dark mode, are now consistently darkened to match the overall theme. Borders that were originally light or bright will now automatically adjust to a darker shade, maintaining visual coherence across all elements.
-- **Gradient Backgrounds Now Supported**  
-  Dark mode now applies to gradient backgrounds as well. The update introduces the ability to detect and adjust gradients, ensuring that even multi-colored backgrounds are darkened appropriately. This enhancement guarantees that websites utilizing gradients in their design are also visually consistent in dark mode, improving overall readability and aesthetic coherence.
-- **SVG Elements and Colors Adjusted**  
-  Added support for adapting the colors of SVG elements in dark mode. This includes handling fill and stroke properties for various SVG shapes such as `<path>, <circle>, <ellipse>, <rect>, <line>, <polygon>, and <polyline>`. Previously unstyled SVG elements are now given default dark colors to ensure they align with the dark mode theme.
-- **Mutation Observer for Dynamic Content**  
-  Implemented a Mutation Observer to monitor and apply dark mode styles to newly added content on the page. This feature ensures that dark mode adapts to dynamically loaded content, such as infinite scrolling or AJAX-loaded elements, providing consistent theming without requiring page reloads.
+  Improved the dark mode by including support for adapting border colors.
+- **Gradient Backgrounds Now Supported**
+- **SVG Elements and Colors Adjusted**
+- **Mutation Observer for Dynamic Content**
 
 ### 1.0.3
 
-- **Expanded Support for iFrames and Shadow DOM**  
-  Introduced comprehensive support for applying dark mode within embedded iFrames and Shadow DOMs. This update ensures that dark mode styles are propagated seamlessly across all nested content, including third-party embedded content and encapsulated components within Shadow DOM. The extension now fully integrates dark mode across all layers of web page structures, providing a unified and immersive dark theme experience regardless of content embedding or web component isolation.
+- **Expanded Support for iFrames and Shadow DOM**
 
 ### 1.0.2
 
 - **Enhanced Dark Mode Application for a Wider Range of Colors**  
-  Improved the dark mode functionality by extending its application to a broader spectrum of colors. Leveraged advanced color analysis using HSL (Hue, Saturation, Lightness) to identify and convert not only light shades but also intermediate gray tones to a deeper, more consistent dark theme. This update ensures that a greater variety of background and text colors are converted to dark mode, enhancing readability and user experience across diverse websites.
-
+  Leveraged HSL color analysis to identify and convert a broader spectrum of colors to dark mode.
