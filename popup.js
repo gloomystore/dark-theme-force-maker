@@ -23,10 +23,21 @@ document.addEventListener('DOMContentLoaded', () => {
   });
 
   function loadState() {
-    chrome.storage.local.get(['darkMode', 'globalMode', 'excludeList'], (result) => {
-      const mode = result.darkMode || 'off';
+    chrome.storage.local.get(['darkMode', 'globalMode', 'excludeList', 'siteSettings'], (result) => {
+      const globalMode = result.darkMode || 'off';
       const global = result.globalMode || false;
       const excludes = result.excludeList || [];
+      const siteSettings = result.siteSettings || {};
+
+      // 현재 사이트의 모드 결정: 사이트별 설정 > 글로벌 설정
+      let mode;
+      if (currentDomain && siteSettings[currentDomain]) {
+        mode = siteSettings[currentDomain];
+      } else if (global) {
+        mode = globalMode;
+      } else {
+        mode = 'off';
+      }
 
       chkGlobal.checked = global;
       renderExcludeList(excludes);
@@ -77,27 +88,42 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   function applyMode(mode) {
-    chrome.storage.local.set({ darkMode: mode }, () => {
-      chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
-        const action = mode === 'off' ? 'removeDarkMode'
-          : mode === 'normal' ? 'applyNormalMode'
-          : 'applyUltraMode';
-        chrome.tabs.sendMessage(tabs[0].id, { action }, () => {
-          loadState();
+    // 사이트별 설정 저장 + 전역 darkMode 값도 동기화
+    chrome.storage.local.get(['siteSettings'], (result) => {
+      const siteSettings = result.siteSettings || {};
+      if (mode === 'off') {
+        delete siteSettings[currentDomain];
+      } else {
+        siteSettings[currentDomain] = mode;
+      }
+      chrome.storage.local.set({ siteSettings, darkMode: mode }, () => {
+        chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
+          const action = mode === 'off' ? 'removeDarkMode'
+            : mode === 'normal' ? 'applyNormalMode'
+            : 'applyUltraMode';
+          chrome.tabs.sendMessage(tabs[0].id, { action }, () => {
+            loadState();
+          });
         });
       });
     });
   }
 
   btnNormal.addEventListener('click', () => {
-    chrome.storage.local.get(['darkMode'], (result) => {
-      applyMode(result.darkMode === 'normal' ? 'off' : 'normal');
+    chrome.storage.local.get(['siteSettings', 'darkMode', 'globalMode'], (result) => {
+      const siteSettings = result.siteSettings || {};
+      const global = result.globalMode || false;
+      const currentMode = siteSettings[currentDomain] || (global ? (result.darkMode || 'off') : 'off');
+      applyMode(currentMode === 'normal' ? 'off' : 'normal');
     });
   });
 
   btnUltra.addEventListener('click', () => {
-    chrome.storage.local.get(['darkMode'], (result) => {
-      applyMode(result.darkMode === 'ultra' ? 'off' : 'ultra');
+    chrome.storage.local.get(['siteSettings', 'darkMode', 'globalMode'], (result) => {
+      const siteSettings = result.siteSettings || {};
+      const global = result.globalMode || false;
+      const currentMode = siteSettings[currentDomain] || (global ? (result.darkMode || 'off') : 'off');
+      applyMode(currentMode === 'ultra' ? 'off' : 'ultra');
     });
   });
 

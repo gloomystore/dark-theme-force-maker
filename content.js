@@ -290,20 +290,26 @@ function observeDomChanges(mode) {
 // ==================================================
 // Auto-apply on page load
 // ==================================================
-chrome.storage.local.get(['darkMode', 'globalMode', 'excludeList'], (result) => {
-  const mode = result.darkMode || 'off';
+chrome.storage.local.get(['darkMode', 'globalMode', 'excludeList', 'siteSettings'], (result) => {
+  const globalMode = result.darkMode || 'off';
   const global = result.globalMode || false;
   const excludes = result.excludeList || [];
-
-  if (mode === 'off') return;
+  const siteSettings = result.siteSettings || {};
+  const domain = location.hostname;
 
   // Exclude list 체크
-  const domain = location.hostname;
   const excluded = excludes.some(d => domain === d || domain.endsWith('.' + d));
   if (excluded) return;
 
-  // Global 모드가 아니면 수동 토글만 동작
-  if (!global) return;
+  // 사이트별 설정 우선, 없으면 글로벌 설정 사용
+  let mode = 'off';
+  if (siteSettings[domain]) {
+    mode = siteSettings[domain];
+  } else if (global) {
+    mode = globalMode;
+  }
+
+  if (mode === 'off') return;
 
   if (mode === 'normal') applyNormalMode();
   else if (mode === 'ultra') applyUltraMode();

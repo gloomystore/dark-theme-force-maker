@@ -1,5 +1,9 @@
 ## Changelog
 
+### 2.0.1
+
+- **Bug fix: Mode state not persisted across tabs/sites** — Clicking Enable Normal/Ultra now correctly saves the global `darkMode` value alongside the per-site setting. Previously, switching to another tab always showed no button active, and page auto-apply on load was also silently skipped.
+
 ### 2.0.0
 
 - **Major: Simplified to 2 modes** — Removed the old 4-mode system (fast/slow/direct/ultra). Now only **Normal Mode** and **Ultra Mode** remain.
