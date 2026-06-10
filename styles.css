@@ -159,6 +159,15 @@ button.active {
   padding: 5px 10px;
 }
 
+.lite-row {
+  margin-top: 6px;
+}
+
+.lite-hint {
+  color: #888;
+  font-size: 10px;
+}
+
 #status {
   margin-top: 8px;
   font-size: 11px;

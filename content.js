@@ -7,6 +7,9 @@ const colorStyleMap = new Map();
 const colorClassMap = new Map();
 let timeout = null;
 let activeObserver = null;
+let liteMode = false;
+let observerThrottleTimer = null;
+let pendingMutationNodes = [];
 
 // 메시지 수신
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
@@ -20,6 +23,9 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     sendResponse({ success: true });
   } else if (message.action === 'removeDarkMode') {
     removeDarkMode();
+    sendResponse({ success: true });
+  } else if (message.action === 'setLiteMode') {
+    liteMode = message.value;
     sendResponse({ success: true });
   }
 });
@@ -50,6 +56,10 @@ function applyNormalToElements(root) {
         el.style.setProperty('background-color', '#222', 'important');
         el.style.setProperty('color', '#e0e0e0', 'important');
       }
+      if (isGradientLight(cs.backgroundImage)) {
+        el.style.setProperty('background-image', darkifyGradient(cs.backgroundImage), 'important');
+        el.style.setProperty('color', '#e0e0e0', 'important');
+      }
       if (isDarkColor(cs.color)) {
         el.style.setProperty('color', '#e0e0e0', 'important');
       }
@@ -77,26 +87,34 @@ function applyUltraMode() {
 
 function applyUltraToElements(root) {
   if (!root) return;
-  const els = root.querySelectorAll('*');
-  for (let i = 0; i < els.length; i++) {
-    const el = els[i];
-    const cs = getComputedStyle(el);
-    if (isLightColor(cs.backgroundColor)) {
-      const tag = el.tagName.toLowerCase();
-      el.classList.add(getOrAssignClass(tag, cs.backgroundColor));
-      el.style.setProperty('background-color', '#222', 'important');
-      el.style.setProperty('color', '#e0e0e0', 'important');
+  const apply = () => {
+    const els = root.querySelectorAll('*');
+    for (let i = 0; i < els.length; i++) {
+      const el = els[i];
+      const cs = getComputedStyle(el);
+      if (isLightColor(cs.backgroundColor)) {
+        const tag = el.tagName.toLowerCase();
+        el.classList.add(getOrAssignClass(tag, cs.backgroundColor));
+        el.style.setProperty('background-color', '#222', 'important');
+        el.style.setProperty('color', '#e0e0e0', 'important');
+      }
+      if (isGradientLight(cs.backgroundImage)) {
+        el.style.setProperty('background-image', darkifyGradient(cs.backgroundImage), 'important');
+        el.style.setProperty('color', '#e0e0e0', 'important');
+      }
+      if (isDarkColor(cs.color)) {
+        const tag = el.tagName.toLowerCase();
+        el.classList.add(getOrAssignClass(tag, cs.color));
+        el.style.setProperty('color', '#e0e0e0', 'important');
+      }
+      if (isLightColor(cs.borderColor)) {
+        el.classList.add('gloomy-dark-border');
+        el.style.setProperty('border-color', '#555', 'important');
+      }
     }
-    if (isDarkColor(cs.color)) {
-      const tag = el.tagName.toLowerCase();
-      el.classList.add(getOrAssignClass(tag, cs.color));
-      el.style.setProperty('color', '#e0e0e0', 'important');
-    }
-    if (isLightColor(cs.borderColor)) {
-      el.classList.add('gloomy-dark-border');
-      el.style.setProperty('border-color', '#555', 'important');
-    }
-  }
+  };
+  if (liteMode) requestAnimationFrame(apply);
+  else apply();
 }
 
 // ==================================================
@@ -182,6 +200,7 @@ function removeDarkMode() {
 
   document.querySelectorAll('*').forEach(el => {
     el.style.removeProperty('background-color');
+    el.style.removeProperty('background-image');
     el.style.removeProperty('color');
     el.style.removeProperty('border-color');
   });
@@ -251,6 +270,45 @@ function isDarkColor(color) {
   return false;
 }
 
+function isGradientLight(backgroundImage) {
+  if (!backgroundImage || backgroundImage === 'none') return false;
+  if (!backgroundImage.includes('gradient')) return false;
+  const colors = backgroundImage.match(/rgba?\([\d.,\s]+\)/g);
+  if (!colors) return false;
+  return colors.some(c => isLightColor(c));
+}
+
+function darkifyGradient(backgroundImage) {
+  return backgroundImage.replace(/rgba?\([\d.,\s]+\)/g, (match) => {
+    const parts = match.match(/[\d.]+/g).map(Number);
+    if (parts.length >= 4 && parts[3] < 0.1) return match;
+    const [h, s, l] = rgbToHsl(parts[0], parts[1], parts[2]);
+    if (l <= 0.45) return match;
+    const newL = 0.08 + (1.0 - l) * 0.18;
+    const newS = Math.min(s * 0.6, 0.35);
+    const [nr, ng, nb] = hslToRgb(h, newS, newL);
+    if (parts.length >= 4) {
+      return `rgba(${Math.round(nr)}, ${Math.round(ng)}, ${Math.round(nb)}, ${parts[3]})`;
+    }
+    return `rgb(${Math.round(nr)}, ${Math.round(ng)}, ${Math.round(nb)})`;
+  });
+}
+
+function hslToRgb(h, s, l) {
+  if (s === 0) return [l * 255, l * 255, l * 255];
+  const hue2rgb = (p, q, t) => {
+    if (t < 0) t += 1;
+    if (t > 1) t -= 1;
+    if (t < 1 / 6) return p + (q - p) * 6 * t;
+    if (t < 1 / 2) return q;
+    if (t < 2 / 3) return p + (q - p) * (2 / 3 - t) * 6;
+    return p;
+  };
+  const q = l < 0.5 ? l * (1 + s) : l + s - l * s;
+  const p = 2 * l - q;
+  return [hue2rgb(p, q, h + 1 / 3) * 255, hue2rgb(p, q, h) * 255, hue2rgb(p, q, h - 1 / 3) * 255];
+}
+
 function rgbToHsl(r, g, b) {
   r /= 255; g /= 255; b /= 255;
   const max = Math.max(r, g, b), min = Math.min(r, g, b);
@@ -276,13 +334,36 @@ function observeDomChanges(mode) {
   if (activeObserver) activeObserver.disconnect();
 
   activeObserver = new MutationObserver(mutations => {
+    const added = [];
     mutations.forEach(m => {
       m.addedNodes.forEach(node => {
-        if (node.nodeType !== 1) return;
+        if (node.nodeType === 1) added.push(node);
+      });
+    });
+    if (!added.length) return;
+
+    if (liteMode) {
+      // 스로틀: 200ms마다 최대 한 번 실행, 그동안 쌓인 노드 일괄 처리
+      pendingMutationNodes.push(...added);
+      if (!observerThrottleTimer) {
+        observerThrottleTimer = setTimeout(() => {
+          const nodes = pendingMutationNodes.splice(0);
+          observerThrottleTimer = null;
+          requestAnimationFrame(() => {
+            nodes.forEach(node => {
+              if (!document.contains(node)) return;
+              if (mode === 'normal') applyNormalToElements(node);
+              else applyUltraToElements(node);
+            });
+          });
+        }, 200);
+      }
+    } else {
+      added.forEach(node => {
         if (mode === 'normal') applyNormalToElements(node.parentElement);
         else applyUltraToElements(node.parentElement);
       });
-    });
+    }
   });
   activeObserver.observe(document.body, { childList: true, subtree: true });
 }
@@ -290,7 +371,8 @@ function observeDomChanges(mode) {
 // ==================================================
 // Auto-apply on page load
 // ==================================================
-chrome.storage.local.get(['darkMode', 'globalMode', 'excludeList', 'siteSettings'], (result) => {
+chrome.storage.local.get(['darkMode', 'globalMode', 'excludeList', 'siteSettings', 'liteMode'], (result) => {
+  liteMode = result.liteMode || false;
   const globalMode = result.darkMode || 'off';
   const global = result.globalMode || false;
   const excludes = result.excludeList || [];

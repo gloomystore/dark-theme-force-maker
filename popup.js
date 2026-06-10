@@ -2,6 +2,7 @@ document.addEventListener('DOMContentLoaded', () => {
   const btnNormal = document.getElementById('btn-normal');
   const btnUltra = document.getElementById('btn-ultra');
   const chkGlobal = document.getElementById('chk-global');
+  const chkLite = document.getElementById('chk-lite');
   const status = document.getElementById('status');
   const domainEl = document.getElementById('current-domain');
   const excludeList = document.getElementById('exclude-list');
@@ -23,7 +24,7 @@ document.addEventListener('DOMContentLoaded', () => {
   });
 
   function loadState() {
-    chrome.storage.local.get(['darkMode', 'globalMode', 'excludeList', 'siteSettings'], (result) => {
+    chrome.storage.local.get(['darkMode', 'globalMode', 'excludeList', 'siteSettings', 'liteMode'], (result) => {
       const globalMode = result.darkMode || 'off';
       const global = result.globalMode || false;
       const excludes = result.excludeList || [];
@@ -40,6 +41,7 @@ document.addEventListener('DOMContentLoaded', () => {
       }
 
       chkGlobal.checked = global;
+      chkLite.checked = result.liteMode || false;
       renderExcludeList(excludes);
       updateButtons(mode, global, excludes);
     });
@@ -133,6 +135,20 @@ document.addEventListener('DOMContentLoaded', () => {
       status.textContent = chkGlobal.checked
         ? 'Global mode ON — applies to all sites.'
         : 'Global mode OFF — manual toggle per site.';
+    });
+  });
+
+  // Lite mode 토글
+  chkLite.addEventListener('change', () => {
+    chrome.storage.local.set({ liteMode: chkLite.checked }, () => {
+      chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
+        if (tabs[0]) {
+          chrome.tabs.sendMessage(tabs[0].id, { action: 'setLiteMode', value: chkLite.checked });
+        }
+      });
+      status.textContent = chkLite.checked
+        ? 'Lite mode ON — reduced CPU/RAM usage.'
+        : 'Lite mode OFF.';
     });
   });
 
