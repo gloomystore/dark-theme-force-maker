@@ -1,5 +1,20 @@
 ## Changelog
 
+### 2.0.3
+
+- **New: PDF dark mode via color inversion** — When a PDF page is detected (`document.contentType === 'application/pdf'` or `.pdf` URL), dark mode is applied via a `backdrop-filter: invert(1) hue-rotate(180deg)` overlay instead of inline style injection. This works at the compositor level and covers all PDF rendering methods: Chrome (`<div>`/canvas-based viewer) and Edge (`<object>`-based viewer). Applying `filter` directly to `<embed>` has no effect on Chrome's native PDF renderer, so the overlay approach is used instead.
+- **New: Exclude list type selector** — Three distinct pattern types can now be selected when adding an exclude entry:
+  - `*.domain` (wildcard): matches all subdomains of the given domain, port-agnostic.
+  - `domain` (exact): matches the exact hostname and its subdomains, port-agnostic.
+  - `domain:port`: matches the exact hostname only when accessed on the specified port.
+  - Type is displayed as a colored badge (`[*]` / `[D]` / `[:P]`) in the exclude list.
+- **New: Toggle behavior for exclude buttons** — The "Add" button switches to "Remove" when the typed pattern already exists in the list. The "Exclude current site" button switches to "× Remove from exclude" when the current site is already excluded; clicking it removes all matching entries.
+- **Fix: Port-aware exclude matching** — `background.js` now returns the port alongside the hostname. `content.js` and `popup.js` exclude matching now correctly handles `domain-port` entries using `location.port`.
+
+### 2.0.2
+
+- Restored from CRX: lite mode, gradient darkify, observer throttle, and related fixes.
+
 ### 2.0.1
 
 - **Bug fix: Mode state not persisted across tabs/sites** — Clicking Enable Normal/Ultra now correctly saves the global `darkMode` value alongside the per-site setting. Previously, switching to another tab always showed no button active, and page auto-apply on load was also silently skipped.
