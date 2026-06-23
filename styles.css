@@ -2,7 +2,7 @@ body {
   font-family: Arial, sans-serif;
   margin: 0;
   padding: 0;
-  width: 280px;
+  width: 290px;
   background-color: #1e1e1e;
   color: #e0e0e0;
 }
@@ -69,6 +69,18 @@ button.active {
   background-color: #ff5252;
 }
 
+button.active:hover {
+  background-color: #d32f2f;
+}
+
+button.btn-remove {
+  background-color: #7a2a2a;
+}
+
+button.btn-remove:hover {
+  background-color: #9a3535;
+}
+
 .btn-secondary {
   width: 100%;
   margin-top: 6px;
@@ -79,6 +91,14 @@ button.active {
 
 .btn-secondary:hover {
   background-color: #555;
+}
+
+.btn-secondary.btn-remove {
+  background-color: #5a2020;
+}
+
+.btn-secondary.btn-remove:hover {
+  background-color: #7a2a2a;
 }
 
 .section {
@@ -107,18 +127,73 @@ button.active {
   margin-bottom: 6px;
 }
 
+/* Exclude type selector */
+.exclude-type-row {
+  display: flex;
+  gap: 3px;
+  margin-bottom: 6px;
+}
+
+.type-btn {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 4px 3px;
+  font-size: 10px;
+  border: 1px solid #3a3a3a;
+  border-radius: 4px;
+  cursor: pointer;
+  color: #777;
+  user-select: none;
+  transition: all 0.15s;
+  text-align: center;
+}
+
+.type-btn input[type="radio"] {
+  display: none;
+}
+
+.type-btn:has(input:checked) {
+  border-color: #7c4dff;
+  background: #2a1a48;
+  color: #b38aff;
+}
+
+.type-btn:hover {
+  border-color: #555;
+  color: #aaa;
+}
+
+/* Exclude list items */
 .exclude-item {
   display: flex;
-  justify-content: space-between;
   align-items: center;
   padding: 3px 0;
   font-size: 11px;
   border-bottom: 1px solid #2a2a2a;
+  gap: 4px;
 }
 
-.exclude-item span {
+.exclude-badge {
+  font-size: 9px;
+  font-weight: bold;
+  padding: 1px 4px;
+  border-radius: 3px;
+  flex-shrink: 0;
+  font-family: monospace;
+  letter-spacing: 0;
+}
+
+.badge-wildcard { background: #1a2a48; color: #7ab0ff; }
+.badge-domain   { background: #1a3520; color: #7ad87a; }
+.badge-port     { background: #3a2810; color: #ffb570; }
+
+.exclude-pattern {
+  flex: 1;
   color: #ccc;
   word-break: break-all;
+  font-size: 11px;
 }
 
 .exclude-item button {
@@ -127,6 +202,7 @@ button.active {
   font-size: 14px;
   padding: 0 4px;
   min-width: auto;
+  flex-shrink: 0;
 }
 
 .exclude-item button:hover {
@@ -148,6 +224,7 @@ button.active {
   background: #2a2a2a;
   color: #e0e0e0;
   outline: none;
+  min-width: 0;
 }
 
 .exclude-input-row input:focus {
@@ -157,6 +234,7 @@ button.active {
 .exclude-input-row button {
   font-size: 11px;
   padding: 5px 10px;
+  flex-shrink: 0;
 }
 
 .lite-row {

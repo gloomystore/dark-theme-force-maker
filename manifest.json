@@ -3,7 +3,7 @@
 
   "manifest_version": 3,
   "name": "Dark Theme Force Maker",
-  "version": "2.0.2",
+  "version": "2.0.3",
   "description": "Force dark mode on any website. Normal mode and Ultra mode with domain exclude list.",
   "homepage_url": "https://www.gloomy-store.com",
   "permissions": [

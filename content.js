@@ -1,6 +1,6 @@
 // ==================================================
 // Dark Theme Force Maker - Content Script
-// Modes: Normal (direct style) / Ultra (class + style)
+// Modes: Normal / Ultra / PDF (color invert)
 // ==================================================
 
 const colorStyleMap = new Map();
@@ -11,15 +11,42 @@ let liteMode = false;
 let observerThrottleTimer = null;
 let pendingMutationNodes = [];
 
+function isPdfPage() {
+  return document.contentType === 'application/pdf' ||
+    /\.pdf(\?[^#]*)?$/i.test(window.location.pathname);
+}
+
+// 와일드카드/도메인/도메인+포트 모두 지원하는 exclude 매칭
+function matchesExclude(entry, hostname, port) {
+  const pattern = typeof entry === 'string' ? entry : entry.pattern;
+  const type = typeof entry === 'string' ? 'domain' : entry.type;
+
+  if (type === 'wildcard') {
+    const base = pattern.replace(/^\*\./, '');
+    return hostname === base || hostname.endsWith('.' + base);
+  }
+  if (type === 'domain-port') {
+    const colonIdx = pattern.lastIndexOf(':');
+    if (colonIdx === -1) return false;
+    const pHost = pattern.slice(0, colonIdx);
+    const pPort = pattern.slice(colonIdx + 1);
+    return hostname === pHost && port === pPort;
+  }
+  // 'domain' (기본값, 하위 호환)
+  return hostname === pattern || hostname.endsWith('.' + pattern);
+}
+
 // 메시지 수신
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   if (message.action === 'applyNormalMode') {
     removeDarkMode();
-    applyNormalMode();
+    if (isPdfPage()) applyPdfInvertMode();
+    else applyNormalMode();
     sendResponse({ success: true });
   } else if (message.action === 'applyUltraMode') {
     removeDarkMode();
-    applyUltraMode();
+    if (isPdfPage()) applyPdfInvertMode();
+    else applyUltraMode();
     sendResponse({ success: true });
   } else if (message.action === 'removeDarkMode') {
     removeDarkMode();
@@ -29,6 +56,33 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     sendResponse({ success: true });
   }
 });
+
+// ==================================================
+// PDF Invert Mode — backdrop-filter로 컴포지터 레벨 색반전
+//
+// embed에 filter 스타일을 직접 넣어도 Chrome 네이티브 PDF 렌더러는 무시함.
+// backdrop-filter는 컴포지터가 이미 렌더링한 픽셀에 후처리로 적용되므로
+// div(Chrome) / object(Edge) / embed 방식 모두 커버 가능.
+// ==================================================
+function applyPdfInvertMode() {
+  if (document.getElementById('dark-mode-pdf-overlay')) return;
+
+  // 페이지 배경색 설정 (툴바 여백 등)
+  const style = document.createElement('style');
+  style.id = 'dark-mode-styles';
+  style.textContent = `html { background: #000 !important; }`;
+  (document.head || document.documentElement).appendChild(style);
+
+  // 전체 뷰포트를 덮는 투명 오버레이에 backdrop-filter 적용
+  const overlay = document.createElement('div');
+  overlay.id = 'dark-mode-pdf-overlay';
+  overlay.style.cssText =
+    'position:fixed;inset:0;width:100%;height:100%;' +
+    'backdrop-filter:invert(1) hue-rotate(180deg);' +
+    '-webkit-backdrop-filter:invert(1) hue-rotate(180deg);' +
+    'pointer-events:none;z-index:2147483647;';
+  (document.body || document.documentElement).appendChild(overlay);
+}
 
 // ==================================================
 // Normal Mode (inline style)
@@ -192,6 +246,9 @@ function removeDarkMode() {
   const style = document.getElementById('dark-mode-styles');
   if (style) style.remove();
 
+  const pdfOverlay = document.getElementById('dark-mode-pdf-overlay');
+  if (pdfOverlay) pdfOverlay.remove();
+
   document.querySelectorAll("[class*='gloomy-dark-']").forEach(el => {
     if (el.className && typeof el.className === 'string') {
       el.className = el.className.split(' ').filter(c => !c.startsWith('gloomy-dark-')).join(' ');
@@ -203,6 +260,7 @@ function removeDarkMode() {
     el.style.removeProperty('background-image');
     el.style.removeProperty('color');
     el.style.removeProperty('border-color');
+    el.style.removeProperty('filter');
   });
 
   colorClassMap.clear();
@@ -343,7 +401,6 @@ function observeDomChanges(mode) {
     if (!added.length) return;
 
     if (liteMode) {
-      // 스로틀: 200ms마다 최대 한 번 실행, 그동안 쌓인 노드 일괄 처리
       pendingMutationNodes.push(...added);
       if (!observerThrottleTimer) {
         observerThrottleTimer = setTimeout(() => {
@@ -377,22 +434,26 @@ chrome.storage.local.get(['darkMode', 'globalMode', 'excludeList', 'siteSettings
   const global = result.globalMode || false;
   const excludes = result.excludeList || [];
   const siteSettings = result.siteSettings || {};
-  const domain = location.hostname;
+  const hostname = location.hostname;
+  const port = location.port;
 
-  // Exclude list 체크
-  const excluded = excludes.some(d => domain === d || domain.endsWith('.' + d));
+  const excluded = excludes.some(e => matchesExclude(e, hostname, port));
   if (excluded) return;
 
-  // 사이트별 설정 우선, 없으면 글로벌 설정 사용
   let mode = 'off';
-  if (siteSettings[domain]) {
-    mode = siteSettings[domain];
+  if (siteSettings[hostname]) {
+    mode = siteSettings[hostname];
   } else if (global) {
     mode = globalMode;
   }
 
   if (mode === 'off') return;
 
-  if (mode === 'normal') applyNormalMode();
-  else if (mode === 'ultra') applyUltraMode();
+  if (isPdfPage()) {
+    applyPdfInvertMode();
+  } else if (mode === 'normal') {
+    applyNormalMode();
+  } else if (mode === 'ultra') {
+    applyUltraMode();
+  }
 });

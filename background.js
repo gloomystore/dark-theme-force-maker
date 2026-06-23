@@ -8,12 +8,16 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   if (message.action === 'getCurrentDomain') {
     chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
       if (tabs.length > 0) {
-        const url = new URL(tabs[0].url);
-        sendResponse({ domain: url.hostname });
+        try {
+          const url = new URL(tabs[0].url);
+          sendResponse({ domain: url.hostname, port: url.port });
+        } catch {
+          sendResponse({ domain: null, port: '' });
+        }
       } else {
-        sendResponse({ domain: null });
+        sendResponse({ domain: null, port: '' });
       }
     });
-    return true;  // Indicates that the response is sent asynchronously
+    return true;
   }
 });

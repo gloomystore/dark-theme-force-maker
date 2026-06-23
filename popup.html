@@ -29,8 +29,24 @@
     <div class="section">
       <h2>Exclude List</h2>
       <div id="exclude-list"></div>
+
+      <div class="exclude-type-row">
+        <label class="type-btn">
+          <input type="radio" name="exclude-type" value="wildcard">
+          <span>*.domain</span>
+        </label>
+        <label class="type-btn">
+          <input type="radio" name="exclude-type" value="domain" checked>
+          <span>domain</span>
+        </label>
+        <label class="type-btn">
+          <input type="radio" name="exclude-type" value="domain-port">
+          <span>domain:port</span>
+        </label>
+      </div>
+
       <div class="exclude-input-row">
-        <input type="text" id="exclude-input" placeholder="e.g. youtube.com">
+        <input type="text" id="exclude-input" placeholder="e.g. example.com">
         <button id="btn-add-exclude">Add</button>
       </div>
       <button id="btn-exclude-current" class="btn-secondary">Exclude current site</button>
