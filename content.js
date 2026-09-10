@@ -4,7 +4,6 @@
 // ==================================================
 
 const colorStyleMap = new Map();
-const colorClassMap = new Map();
 let timeout = null;
 let activeObserver = null;
 let liteMode = false;
@@ -107,19 +106,17 @@ function applyNormalToElements(root) {
       const el = els[i];
       const cs = getComputedStyle(el);
       if (isLightColor(cs.backgroundColor)) {
-        el.style.setProperty('background-color', '#222', 'important');
-        el.style.setProperty('color', '#e0e0e0', 'important');
-      }
-      if (isGradientLight(cs.backgroundImage)) {
-        el.style.setProperty('background-image', darkifyGradient(cs.backgroundImage), 'important');
+        el.style.setProperty('background-color', mapDark(cs.backgroundColor), 'important');
         el.style.setProperty('color', '#e0e0e0', 'important');
       }
       if (isDarkColor(cs.color)) {
-        el.style.setProperty('color', '#e0e0e0', 'important');
+        el.style.setProperty('color', mapLight(cs.color), 'important');
       }
       if (isLightColor(cs.borderColor)) {
-        el.style.setProperty('border-color', '#555', 'important');
+        el.style.setProperty('border-color', mapDark(cs.borderColor), 'important');
       }
+      applyGradientIfNeeded(el, cs);
+      invertIconIfNeeded(el, cs);
     }
   });
 }
@@ -147,24 +144,22 @@ function applyUltraToElements(root) {
       const el = els[i];
       const cs = getComputedStyle(el);
       if (isLightColor(cs.backgroundColor)) {
-        const tag = el.tagName.toLowerCase();
-        el.classList.add(getOrAssignClass(tag, cs.backgroundColor));
-        el.style.setProperty('background-color', '#222', 'important');
-        el.style.setProperty('color', '#e0e0e0', 'important');
-      }
-      if (isGradientLight(cs.backgroundImage)) {
-        el.style.setProperty('background-image', darkifyGradient(cs.backgroundImage), 'important');
+        el.classList.add('gloomy-dark-bg');
+        el.style.setProperty('background-color', mapDark(cs.backgroundColor), 'important');
         el.style.setProperty('color', '#e0e0e0', 'important');
       }
       if (isDarkColor(cs.color)) {
-        const tag = el.tagName.toLowerCase();
-        el.classList.add(getOrAssignClass(tag, cs.color));
-        el.style.setProperty('color', '#e0e0e0', 'important');
+        el.classList.add('gloomy-dark-txt');
+        el.style.setProperty('color', mapLight(cs.color), 'important');
       }
       if (isLightColor(cs.borderColor)) {
         el.classList.add('gloomy-dark-border');
-        el.style.setProperty('border-color', '#555', 'important');
+        el.style.setProperty('border-color', mapDark(cs.borderColor), 'important');
       }
+      if (applyGradientIfNeeded(el, cs)) {
+        el.classList.add('gloomy-dark-gradient');
+      }
+      invertIconIfNeeded(el, cs);
     }
   };
   if (liteMode) requestAnimationFrame(apply);
@@ -192,19 +187,8 @@ function injectBaseStyle() {
 function injectDarkModeStyle() {
   if (document.getElementById('dark-mode-styles')) return;
 
-  const purples = [
-    '#0f0e0f','#1a171a','#242024','#2e292e','#383238',
-    '#423b42','#4c444c','#564d56','#605660','#6a5f6a'
-  ];
-  const tags = [
-    'html','body','div','span','section','article','button','a','label','input','pre','code',
-    'table','tr','td','th','ul','li','nav','header','footer','main','aside','form','textarea',
-    'select','option','img','p','h1','h2','h3','h4','h5','h6'
-  ];
-
-  let css = `
+  const css = `
     html, body { background-color: #121212 !important; color: #e0e0e0 !important; }
-    .gloomy-dark-border { border-color: #555 !important; }
     .gloomy-dark-svg { fill: #aaa !important; stroke: #aaa !important; }
     img, video, canvas, svg { filter: brightness(0.9); }
     *::before, *::after { background-color: inherit !important; color: inherit !important; border-color: inherit !important; }
@@ -220,12 +204,6 @@ function injectDarkModeStyle() {
       background-color: #3a3a3a !important; color: #888 !important; border-color: #555 !important; cursor: not-allowed !important; }
     a:visited { color: #c080ff !important; }
   `;
-
-  tags.forEach(tag => {
-    purples.forEach((color, i) => {
-      css += `.gloomy-dark-${tag}${i + 1}{background-color:${color}!important;color:#e0e0e0!important;border-color:#6a5a7a!important;}\n`;
-    });
-  });
 
   const style = document.createElement('style');
   style.id = 'dark-mode-styles';
@@ -263,19 +241,7 @@ function removeDarkMode() {
     el.style.removeProperty('filter');
   });
 
-  colorClassMap.clear();
   colorStyleMap.clear();
-}
-
-// ==================================================
-// Class mapping (Ultra)
-// ==================================================
-function getOrAssignClass(tag, color) {
-  if (colorClassMap.has(color)) return colorClassMap.get(color);
-  const idx = Math.floor(Math.random() * 10) + 1;
-  const cls = `gloomy-dark-${tag}${idx}`;
-  colorClassMap.set(color, cls);
-  return cls;
 }
 
 // ==================================================
@@ -306,6 +272,110 @@ function handleIframesAndShadows(root, mode) {
 }
 
 // ==================================================
+// 그라데이션 배경 처리
+// background: linear-gradient(...) 처럼 backgroundColor가 투명이라
+// 일반 검사로는 못 잡는 배경을, backgroundImage 안의 색상 스톱을 직접 변환
+// ==================================================
+function applyGradientIfNeeded(el, cs) {
+  const bgImg = cs.backgroundImage;
+  if (!bgImg || bgImg === 'none') return false;
+  if (!bgImg.includes('gradient')) return false;
+
+  // 그라데이션 내부의 모든 rgb()/rgba() 색상 스톱을 순회하며
+  // 밝은 색만 어둡게 매핑 (위치값 130px, 300px 등은 그대로 보존)
+  let changed = false;
+  const newBg = bgImg.replace(/rgba?\([^)]*\)/g, (match) => {
+    if (isLightColor(match)) {
+      changed = true;
+      return mapDark(match);
+    }
+    return match;
+  });
+
+  if (changed) {
+    el.style.setProperty('background-image', newBg, 'important');
+    el.style.setProperty('color', '#e0e0e0', 'important');
+    return true;
+  }
+  return false;
+}
+
+// ==================================================
+// SVG/이미지 아이콘 반전
+// background-image가 있는 작은 요소(아이콘)를 감지하여 색상 반전
+// ==================================================
+function invertIconIfNeeded(el, cs) {
+  if (cs.backgroundImage && cs.backgroundImage !== 'none' && cs.backgroundImage.includes('url(')) {
+    const w = parseFloat(cs.width);
+    const h = parseFloat(cs.height);
+    // 80px 이하인 아이콘급 요소만 반전 (히어로 이미지 등 큰 요소 제외)
+    if (w <= 80 && h <= 80) {
+      el.style.setProperty('filter', 'invert(1) hue-rotate(180deg)', 'important');
+    }
+  }
+}
+
+// ==================================================
+// Color mapping (Map 기반: 같은 원본색 → 항상 같은 결과)
+// ==================================================
+
+// 밝은색 → 어두운색 매핑 (배경, 테두리용)
+// rgb(255,255,255) 처음 만나면 → 어두운 값 계산 후 Map에 저장
+// 이후 같은 rgb(255,255,255) 만나면 → Map에서 꺼내서 동일한 값 적용
+function mapDark(color) {
+  if (colorStyleMap.has(color)) return colorStyleMap.get(color);
+  const parts = color.match(/[\d.]+/g).map(Number);
+  const [h, s, l] = rgbToHsl(parts[0], parts[1], parts[2]);
+  const alpha = parts.length >= 4 ? parts[3] : 1;
+  // L=1.0(흰) → 0.09, L=0.9(연회색) → 0.12, L=0.55 → 0.22
+  const newL = 0.09 + (1 - l) * 0.28;
+  const newS = Math.min(s * 0.7, 1);
+  const [r, g, b] = hslToRgb(h, newS, newL);
+  const result = alpha < 1 ? `rgba(${r},${g},${b},${alpha})` : `rgb(${r},${g},${b})`;
+  colorStyleMap.set(color, result);
+  return result;
+}
+
+// 어두운색 → 밝은색 매핑 (텍스트용)
+// 검은 텍스트 → 밝은 회색, 어두운 파랑 → 밝은 파랑
+function mapLight(color) {
+  const key = 'txt:' + color;
+  if (colorStyleMap.has(key)) return colorStyleMap.get(key);
+  const parts = color.match(/[\d.]+/g).map(Number);
+  const [h, s, l] = rgbToHsl(parts[0], parts[1], parts[2]);
+  const alpha = parts.length >= 4 ? parts[3] : 1;
+  // L=0(검정) → 0.87, L=0.4 → 0.75
+  const newL = 0.87 - l * 0.3;
+  const newS = s < 0.1 ? 0 : Math.min(s * 0.6, 1);
+  const [r, g, b] = hslToRgb(h, newS, newL);
+  const result = alpha < 1 ? `rgba(${r},${g},${b},${alpha})` : `rgb(${r},${g},${b})`;
+  colorStyleMap.set(key, result);
+  return result;
+}
+
+function hslToRgb(h, s, l) {
+  let r, g, b;
+  if (s === 0) {
+    r = g = b = l;
+  } else {
+    const q = l < 0.5 ? l * (1 + s) : l + s - l * s;
+    const p = 2 * l - q;
+    const hue2rgb = (p, q, t) => {
+      if (t < 0) t += 1;
+      if (t > 1) t -= 1;
+      if (t < 1/6) return p + (q - p) * 6 * t;
+      if (t < 1/2) return q;
+      if (t < 2/3) return p + (q - p) * (2/3 - t) * 6;
+      return p;
+    };
+    r = hue2rgb(p, q, h + 1/3);
+    g = hue2rgb(p, q, h);
+    b = hue2rgb(p, q, h - 1/3);
+  }
+  return [Math.round(r * 255), Math.round(g * 255), Math.round(b * 255)];
+}
+
+// ==================================================
 // Color detection
 // ==================================================
 function isLightColor(color) {
@@ -326,45 +396,6 @@ function isDarkColor(color) {
     return rgbToHsl(parts[0], parts[1], parts[2])[2] < 0.45;
   }
   return false;
-}
-
-function isGradientLight(backgroundImage) {
-  if (!backgroundImage || backgroundImage === 'none') return false;
-  if (!backgroundImage.includes('gradient')) return false;
-  const colors = backgroundImage.match(/rgba?\([\d.,\s]+\)/g);
-  if (!colors) return false;
-  return colors.some(c => isLightColor(c));
-}
-
-function darkifyGradient(backgroundImage) {
-  return backgroundImage.replace(/rgba?\([\d.,\s]+\)/g, (match) => {
-    const parts = match.match(/[\d.]+/g).map(Number);
-    if (parts.length >= 4 && parts[3] < 0.1) return match;
-    const [h, s, l] = rgbToHsl(parts[0], parts[1], parts[2]);
-    if (l <= 0.45) return match;
-    const newL = 0.08 + (1.0 - l) * 0.18;
-    const newS = Math.min(s * 0.6, 0.35);
-    const [nr, ng, nb] = hslToRgb(h, newS, newL);
-    if (parts.length >= 4) {
-      return `rgba(${Math.round(nr)}, ${Math.round(ng)}, ${Math.round(nb)}, ${parts[3]})`;
-    }
-    return `rgb(${Math.round(nr)}, ${Math.round(ng)}, ${Math.round(nb)})`;
-  });
-}
-
-function hslToRgb(h, s, l) {
-  if (s === 0) return [l * 255, l * 255, l * 255];
-  const hue2rgb = (p, q, t) => {
-    if (t < 0) t += 1;
-    if (t > 1) t -= 1;
-    if (t < 1 / 6) return p + (q - p) * 6 * t;
-    if (t < 1 / 2) return q;
-    if (t < 2 / 3) return p + (q - p) * (2 / 3 - t) * 6;
-    return p;
-  };
-  const q = l < 0.5 ? l * (1 + s) : l + s - l * s;
-  const p = 2 * l - q;
-  return [hue2rgb(p, q, h + 1 / 3) * 255, hue2rgb(p, q, h) * 255, hue2rgb(p, q, h - 1 / 3) * 255];
 }
 
 function rgbToHsl(r, g, b) {
